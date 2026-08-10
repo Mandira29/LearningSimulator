@@ -1,0 +1,1 @@
+# NetVisual Academy routes package
