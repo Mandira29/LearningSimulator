@@ -9,12 +9,16 @@ class DeviceModel(BaseModel):
     y: float
     ipAddress: str
     macAddress: str
+    subnetMask: Optional[str] = "255.255.255.0"
+    defaultGateway: Optional[str] = "192.168.1.1"
+    portStatus: Optional[str] = "up"  # up, down
 
 class ConnectionModel(BaseModel):
     id: str
     sourceDeviceId: str
     destinationDeviceId: str
-    status: str  # active, broken
+    status: str = "active"  # active, broken
+    cableType: str = "straight_through"  # straight_through, crossover, console, fiber
 
 class SimulationRequest(BaseModel):
     devices: List[DeviceModel]
@@ -37,5 +41,6 @@ class SimulationResponse(BaseModel):
     success: bool
     error: Optional[str] = None
     message: Optional[str] = None
-    path: Optional[List[str]] = None  # Wait: String is not a python type. Use str!
+    path: Optional[List[str]] = None
     packet: Optional[PacketModel] = None
+

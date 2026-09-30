@@ -165,7 +165,7 @@ class _OsiInspectorState extends State<OsiInspector> {
                   label: const Text('Resume', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryAccent,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0F172A),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                   ),
@@ -521,6 +521,7 @@ class _OsiInspectorState extends State<OsiInspector> {
       context: context,
       builder: (context) {
         final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
         return AlertDialog(
           title: Text(
             'Edit IP Address for ${dev.name}',
@@ -557,6 +558,9 @@ class _OsiInspectorState extends State<OsiInspector> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+              ),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -568,7 +572,7 @@ class _OsiInspectorState extends State<OsiInspector> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: const Color(0xFF0F172A),
               ),
               child: const Text('Save'),
             ),
@@ -581,6 +585,8 @@ class _OsiInspectorState extends State<OsiInspector> {
   // View 3: Connection Details View
   Widget _buildConnectionView(BuildContext context) {
     final conn = widget.state.selectedConnection!;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final srcDev = widget.state.devices.firstWhere(
       (d) => d.id == conn.sourceDeviceId,
       orElse: () => Device(id: '', type: '', name: 'Unknown', x: 0, y: 0, ipAddress: '', macAddress: ''),
@@ -616,8 +622,14 @@ class _OsiInspectorState extends State<OsiInspector> {
             icon: Icon(isBroken ? Icons.construction : Icons.content_cut),
             label: Text(isBroken ? 'Repair Connection' : 'Sever Cable (Break)'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: isBroken ? AppColors.success : AppColors.error,
-              side: BorderSide(color: isBroken ? AppColors.success : AppColors.error),
+              foregroundColor: isBroken
+                  ? (isDark ? AppColors.success : const Color(0xFF16A34A))
+                  : (isDark ? AppColors.error : const Color(0xFFDC2626)),
+              side: BorderSide(
+                color: isBroken
+                    ? (isDark ? AppColors.success : const Color(0xFF16A34A))
+                    : (isDark ? AppColors.error : const Color(0xFFDC2626)),
+              ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),

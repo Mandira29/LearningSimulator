@@ -4,11 +4,11 @@ from app.routes.simulation_routes import router as simulation_router
 
 app = FastAPI(title="NetVisual Academy Backend API", version="1.0.0")
 
-# Configure CORS for local Flutter Web development
+# Configure CORS for Flutter Web development (wildcard origins require allow_credentials=False)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -25,5 +25,6 @@ def get_health():
 
 if __name__ == "__main__":
     import uvicorn
-    # When running as main, start uvicorn directly
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    # When running as main, start uvicorn directly listening on 0.0.0.0
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

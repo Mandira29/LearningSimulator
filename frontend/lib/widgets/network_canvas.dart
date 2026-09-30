@@ -154,7 +154,7 @@ class NetworkCanvas extends StatelessWidget {
       label: Text('Add $type', style: const TextStyle(fontSize: 12)),
       style: ElevatedButton.styleFrom(
         backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
@@ -271,7 +271,7 @@ class NetworkCanvas extends StatelessWidget {
                           label: const Text('Show Hint (-25 XP)', style: TextStyle(fontSize: 11)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.warning,
-                            foregroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0F172A),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                           ),
@@ -292,7 +292,7 @@ class NetworkCanvas extends StatelessWidget {
                             label: const Text('Show Next Hint (-25 XP)', style: TextStyle(fontSize: 11)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.warning,
-                              foregroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF0F172A),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                             ),
@@ -389,7 +389,7 @@ class NetworkCanvas extends StatelessWidget {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryAccent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF0F172A),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         ),

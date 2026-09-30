@@ -38,12 +38,10 @@ class AppTheme {
         primary: AppColors.primaryAccent,
         secondary: AppColors.secondaryAccent,
         surface: AppColors.darkSurface,
-        background: AppColors.darkBg,
         error: AppColors.error,
-        onPrimary: Colors.black,
-        onSecondary: Colors.black,
+        onPrimary: Color(0xFF0F172A),
+        onSecondary: Color(0xFF0F172A),
         onSurface: AppColors.darkTextPrimary,
-        onBackground: AppColors.darkTextPrimary,
       ),
       textTheme: const TextTheme(
         // App title (24–28px, bold)
@@ -96,6 +94,32 @@ class AppTheme {
         ),
         elevation: 0,
       ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryAccent,
+          foregroundColor: const Color(0xFF0F172A),
+          disabledBackgroundColor: const Color(0xFF1E293B),
+          disabledForegroundColor: const Color(0xFF64748B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.darkTextPrimary,
+          disabledForegroundColor: const Color(0xFF64748B),
+          side: const BorderSide(color: AppColors.darkBorder),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryAccent,
+          disabledForegroundColor: const Color(0xFF64748B),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 
@@ -111,12 +135,10 @@ class AppTheme {
         primary: AppColors.primaryAccent,
         secondary: AppColors.secondaryAccent,
         surface: AppColors.lightSecondaryBg,
-        background: AppColors.lightBg,
         error: AppColors.error,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
+        onPrimary: Color(0xFF0F172A),
+        onSecondary: Color(0xFF0F172A),
         onSurface: AppColors.lightTextPrimary,
-        onBackground: AppColors.lightTextPrimary,
       ),
       textTheme: const TextTheme(
         // App title (24–28px, bold)
@@ -168,6 +190,32 @@ class AppTheme {
           borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
         elevation: 0,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryAccent,
+          foregroundColor: const Color(0xFF0F172A),
+          disabledBackgroundColor: const Color(0xFFE2E8F0),
+          disabledForegroundColor: const Color(0xFF94A3B8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.lightTextPrimary,
+          disabledForegroundColor: const Color(0xFF94A3B8),
+          side: const BorderSide(color: AppColors.lightBorder),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF0284C7),
+          disabledForegroundColor: const Color(0xFF94A3B8),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
