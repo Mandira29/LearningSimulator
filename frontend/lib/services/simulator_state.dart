@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../models/connection.dart';
@@ -7,6 +8,7 @@ import 'simulation_service.dart';
 
 class SimulatorState extends ChangeNotifier {
   final SimulationService _simulationService = SimulationService();
+  StreamSubscription<dynamic>? _healthCheckSub;
 
   final List<Device> _devices = [];
   final List<Connection> _connections = [];
@@ -48,9 +50,15 @@ class SimulatorState extends ChangeNotifier {
 
   void _startBackendHealthCheck() {
     checkBackendHealth();
-    Stream.periodic(const Duration(seconds: 5)).listen((_) {
+    _healthCheckSub = Stream.periodic(const Duration(seconds: 5)).listen((_) {
       checkBackendHealth();
     });
+  }
+
+  @override
+  void dispose() {
+    _healthCheckSub?.cancel();
+    super.dispose();
   }
 
   Future<void> checkBackendHealth() async {

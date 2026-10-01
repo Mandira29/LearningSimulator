@@ -97,9 +97,9 @@ class SimulationControls extends StatelessWidget {
                   backgroundColor: state.connectionMode
                       ? AppColors.warning
                       : AppColors.secondaryAccent,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: theme.dividerColor,
-                  disabledForegroundColor: theme.hintColor,
+                  foregroundColor: const Color(0xFF0F172A),
+                  disabledBackgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  disabledForegroundColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
               ),
@@ -116,9 +116,9 @@ class SimulationControls extends StatelessWidget {
                 label: const Text('Ping'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryAccent,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: theme.dividerColor,
-                  disabledForegroundColor: theme.hintColor,
+                  foregroundColor: const Color(0xFF0F172A),
+                  disabledBackgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  disabledForegroundColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
               ),
@@ -134,11 +134,11 @@ class SimulationControls extends StatelessWidget {
                 icon: const Icon(Icons.delete_outline, size: 18),
                 label: const Text('Delete'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  disabledForegroundColor: theme.hintColor,
+                  foregroundColor: isDark ? AppColors.error : const Color(0xFFDC2626),
+                  disabledForegroundColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   side: BorderSide(
                     color: (state.selectedDevice != null || state.selectedConnection != null) && !state.isAnimating
-                        ? AppColors.error
+                        ? (isDark ? AppColors.error : const Color(0xFFDC2626))
                         : theme.dividerColor,
                   ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -160,8 +160,8 @@ class SimulationControls extends StatelessWidget {
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('Reset'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.secondary,
-                  disabledForegroundColor: theme.hintColor,
+                  foregroundColor: isDark ? AppColors.secondaryAccent : const Color(0xFF4F46E5),
+                  disabledForegroundColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   side: BorderSide(color: theme.dividerColor),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
@@ -178,8 +178,8 @@ class SimulationControls extends StatelessWidget {
                 icon: const Icon(Icons.clear_all, size: 18),
                 label: const Text('Clear'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textTheme.bodyLarge?.color,
-                  disabledForegroundColor: theme.hintColor,
+                  foregroundColor: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                  disabledForegroundColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   side: BorderSide(color: theme.dividerColor),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),

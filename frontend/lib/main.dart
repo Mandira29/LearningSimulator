@@ -32,6 +32,13 @@ class _NetVisualAcademyAppState extends State<NetVisualAcademyApp> {
   }
 
   @override
+  void dispose() {
+    _simulatorState.dispose();
+    _themeService.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _themeService,

@@ -244,7 +244,7 @@ class TroubleshootingScreen extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0F172A),
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

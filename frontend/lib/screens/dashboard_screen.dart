@@ -171,13 +171,19 @@ class DashboardScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final accentColor = isDark
+        ? color
+        : (color == AppColors.primaryAccent
+            ? const Color(0xFF0284C7)
+            : const Color(0xFF4F46E5));
+
     return SizedBox(
       height: 100,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-          foregroundColor: color,
+          foregroundColor: accentColor,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
@@ -188,7 +194,7 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 30, color: color),
+            Icon(icon, size: 30, color: accentColor),
             const SizedBox(height: 10),
             Text(
               title,
@@ -276,12 +282,15 @@ class _AnimatedHeroTopologyState extends State<AnimatedHeroTopology> with Single
             children: [
               Icon(Icons.hub_outlined, size: 16, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
-              Text(
-                'LIVE PACKET VISUALIZER PREVIEW',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  color: theme.colorScheme.primary,
+              Flexible(
+                child: Text(
+                  'LIVE PACKET VISUALIZER PREVIEW',
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
             ],
