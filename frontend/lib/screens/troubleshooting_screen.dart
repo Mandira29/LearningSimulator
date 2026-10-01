@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/simulator_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/post_lab_quiz_modal.dart';
 
 class TroubleshootingScreen extends StatelessWidget {
   final SimulatorState state;
@@ -23,24 +24,90 @@ class TroubleshootingScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title Header Block
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Title Header Block & Time Attack Controls
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 16,
               children: [
-                Text(
-                  'TROUBLESHOOTING LAB',
-                  style: textTheme.displayLarge?.copyWith(
-                    letterSpacing: 1.5,
-                    color: theme.colorScheme.primary,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TROUBLESHOOTING LAB',
+                      style: textTheme.displayLarge?.copyWith(
+                        letterSpacing: 1.5,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Diagnose the network. Fix the problem. Test your solution.',
+                      style: textTheme.headlineMedium?.copyWith(
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Diagnose the network. Fix the problem. Test your solution.',
-                  style: textTheme.headlineMedium?.copyWith(
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                    fontSize: 18,
-                  ),
+
+                // Time Attack & Post-Lab Quiz Buttons
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    // Time Attack Button
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        if (state.timeAttackActive) {
+                          state.stopTimeAttack();
+                        } else {
+                          state.startTimeAttack();
+                        }
+                      },
+                      icon: Icon(
+                        state.timeAttackActive ? Icons.timer_off : Icons.timer,
+                        size: 18,
+                      ),
+                      label: Text(
+                        state.timeAttackActive
+                            ? '⏱️ Time Attack: ${state.timeAttackSeconds}s'
+                            : '⚡ Start Time Attack Mode',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: state.timeAttackActive ? AppColors.warning : AppColors.secondaryAccent,
+                        foregroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+
+                    // Post-Lab Quiz Modal Button
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => PostLabQuizModal(
+                            onQuizCompleted: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('🎉 Post-Lab Quiz passed! +100 XP awarded!'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.quiz, size: 18),
+                      label: const Text('Post-Lab Quiz'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryAccent,
+                        foregroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

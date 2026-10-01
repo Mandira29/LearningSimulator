@@ -19,7 +19,7 @@ class NetworkCanvas extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return DragTarget<String>(
-      onWillAccept: (data) => data != null && !state.isAnimating, // Disable drops during animation
+      onWillAcceptWithDetails: (details) => details.data.isNotEmpty && !state.isAnimating, // Disable drops during animation
       onAcceptWithDetails: (details) {
         if (state.isAnimating) return;
 
@@ -492,6 +492,7 @@ class NetworkCanvas extends StatelessWidget {
 
     final isSelected = state.selectedConnection?.id == conn.id;
     final isBroken = conn.status == 'broken';
+    final isValidCable = _isCableValidForPair(src.type, dest.type, conn.cableType);
 
     Color handleColor;
     IconData handleIcon;
@@ -499,12 +500,32 @@ class NetworkCanvas extends StatelessWidget {
     if (isBroken) {
       handleColor = AppColors.error;
       handleIcon = Icons.warning_amber_rounded;
+    } else if (!isValidCable) {
+      handleColor = AppColors.warning;
+      handleIcon = Icons.error_outline;
     } else if (isSelected) {
       handleColor = AppColors.primaryAccent;
       handleIcon = Icons.lan;
     } else {
-      handleColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-      handleIcon = Icons.settings_ethernet;
+      switch (conn.cableType) {
+        case 'crossover':
+          handleColor = const Color(0xFF3B82F6); // Blue
+          handleIcon = Icons.alt_route;
+          break;
+        case 'console':
+          handleColor = const Color(0xFF38BDF8); // Cyan
+          handleIcon = Icons.settings_input_component;
+          break;
+        case 'fiber':
+          handleColor = const Color(0xFFF59E0B); // Amber
+          handleIcon = Icons.bolt;
+          break;
+        case 'straight_through':
+        default:
+          handleColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+          handleIcon = Icons.linear_scale;
+          break;
+      }
     }
 
     return Positioned(
@@ -524,12 +545,12 @@ class NetworkCanvas extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(
                 color: handleColor,
-                width: isSelected ? 2 : 1,
+                width: isSelected ? 2.5 : 1.5,
               ),
-              boxShadow: isSelected
+              boxShadow: (isSelected || !isValidCable)
                   ? [
                       BoxShadow(
-                        color: handleColor.withOpacity(0.4),
+                        color: handleColor.withOpacity(0.5),
                         blurRadius: 6,
                         spreadRadius: 1,
                       )
@@ -547,12 +568,28 @@ class NetworkCanvas extends StatelessWidget {
     );
   }
 
+  bool _isCableValidForPair(String srcType, String destType, String cableType) {
+    final t1 = srcType.toUpperCase();
+    final t2 = destType.toUpperCase();
+    final c = cableType.toLowerCase();
+
+    if (c == 'console') return false;
+    if (t1 == 'PC' && t2 == 'PC') return c == 'crossover';
+    if ((t1 == 'PC' && t2 == 'SWITCH') || (t1 == 'SWITCH' && t2 == 'PC')) return c == 'straight_through';
+    if (t1 == 'SWITCH' && t2 == 'SWITCH') return c == 'crossover' || c == 'fiber';
+    if (t1 == 'ROUTER' && t2 == 'ROUTER') return c == 'crossover' || c == 'fiber';
+    if ((t1 == 'ROUTER' && t2 == 'SWITCH') || (t1 == 'SWITCH' && t2 == 'ROUTER')) return c == 'straight_through' || c == 'fiber';
+    if ((t1 == 'PC' && t2 == 'ROUTER') || (t1 == 'ROUTER' && t2 == 'PC')) return c == 'crossover' || c == 'fiber';
+    return true;
+  }
+
   Widget _buildDeviceNode(BuildContext context, Device dev) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
     final isSelected = state.selectedDevice?.id == dev.id;
     final isPendingConnection = state.firstSelectedDeviceForConnection?.id == dev.id;
+    final isPortDown = dev.portStatus.toLowerCase() == 'down';
 
     IconData devIcon;
     switch (dev.type) {
@@ -571,7 +608,9 @@ class NetworkCanvas extends StatelessWidget {
     }
 
     Color outlineColor = Colors.transparent;
-    if (isSelected) {
+    if (isPortDown) {
+      outlineColor = AppColors.error;
+    } else if (isSelected) {
       outlineColor = AppColors.primaryAccent;
     } else if (isPendingConnection) {
       outlineColor = AppColors.warning;
@@ -600,49 +639,75 @@ class NetworkCanvas extends StatelessWidget {
           cursor: state.isAnimating ? SystemMouseCursors.basic : SystemMouseCursors.move,
           child: Column(
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: outlineColor != Colors.transparent
-                        ? outlineColor
-                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                    width: outlineColor != Colors.transparent ? 2.5 : 1,
-                  ),
-                  boxShadow: (isSelected || isPendingConnection)
-                      ? [
-                          BoxShadow(
-                            color: outlineColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          )
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      devIcon,
-                      size: 34,
-                      color: outlineColor != Colors.transparent
-                          ? outlineColor
-                          : AppColors.primaryAccent,
+              Stack(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: outlineColor != Colors.transparent
+                            ? outlineColor
+                            : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        width: outlineColor != Colors.transparent ? 2.5 : 1,
+                      ),
+                      boxShadow: (isSelected || isPendingConnection || isPortDown)
+                          ? [
+                              BoxShadow(
+                                color: outlineColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              )
+                            ]
+                          : null,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      dev.name,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          devIcon,
+                          size: 34,
+                          color: isPortDown
+                              ? AppColors.error.withOpacity(0.7)
+                              : (outlineColor != Colors.transparent ? outlineColor : AppColors.primaryAccent),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          dev.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Port Administrative Status DOWN Badge
+                  if (isPortDown)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: const Text(
+                          'DOWN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
               const SizedBox(height: 4),
               Container(
@@ -718,26 +783,6 @@ class CablePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final activePaint = Paint()
-      ..color = isDark ? AppColors.secondaryAccent : AppColors.lightTextSecondary
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    final selectedPaint = Paint()
-      ..color = AppColors.primaryAccent
-      ..strokeWidth = 3.5
-      ..style = PaintingStyle.stroke;
-
-    final highlightPaint = Paint()
-      ..color = AppColors.primaryAccent
-      ..strokeWidth = 5.0
-      ..style = PaintingStyle.stroke;
-
-    final brokenPaint = Paint()
-      ..color = AppColors.error
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
     for (final conn in connections) {
       final src = devices.firstWhere((d) => d.id == conn.sourceDeviceId, orElse: () => Device(id: '', type: '', name: '', x: 0, y: 0, ipAddress: '', macAddress: ''));
       final dest = devices.firstWhere((d) => d.id == conn.destinationDeviceId, orElse: () => Device(id: '', type: '', name: '', x: 0, y: 0, ipAddress: '', macAddress: ''));
@@ -751,42 +796,69 @@ class CablePainter extends CustomPainter {
       final isHighlighted = activeConnectionId == conn.id;
       final isBroken = conn.status == 'broken';
 
-      Paint currentPaint;
-      if (isBroken) {
-        currentPaint = brokenPaint;
-      } else if (isHighlighted) {
-        currentPaint = highlightPaint;
-      } else if (isSelected) {
-        currentPaint = selectedPaint;
-      } else {
-        currentPaint = activePaint;
-      }
+      Color cableColor;
+      double strokeWidth = 2.5;
 
       if (isBroken) {
-        _drawDashedLine(canvas, srcCenter, destCenter, currentPaint);
+        cableColor = AppColors.error;
+      } else if (isHighlighted) {
+        cableColor = AppColors.primaryAccent;
+        strokeWidth = 5.0;
+      } else if (isSelected) {
+        cableColor = AppColors.primaryAccent;
+        strokeWidth = 3.5;
       } else {
-        canvas.drawLine(srcCenter, destCenter, currentPaint);
+        switch (conn.cableType) {
+          case 'crossover':
+            cableColor = const Color(0xFF3B82F6); // Blue for Crossover
+            break;
+          case 'console':
+            cableColor = const Color(0xFF38BDF8); // Sky blue for Serial Console
+            break;
+          case 'fiber':
+            cableColor = const Color(0xFFF59E0B); // Amber Yellow for Fiber
+            strokeWidth = 3.0;
+            break;
+          case 'straight_through':
+          default:
+            cableColor = isDark ? AppColors.secondaryAccent : AppColors.lightTextSecondary;
+            break;
+        }
+      }
+
+      final paint = Paint()
+        ..color = cableColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke;
+
+      if (isBroken) {
+        _drawDashedLine(canvas, srcCenter, destCenter, paint, dashWidth: 8.0, dashSpace: 6.0);
+      } else if (conn.cableType == 'crossover') {
+        _drawDashedLine(canvas, srcCenter, destCenter, paint, dashWidth: 10.0, dashSpace: 5.0);
+      } else if (conn.cableType == 'console') {
+        _drawDashedLine(canvas, srcCenter, destCenter, paint, dashWidth: 4.0, dashSpace: 4.0);
+      } else {
+        canvas.drawLine(srcCenter, destCenter, paint);
       }
     }
   }
 
-  void _drawDashedLine(Canvas canvas, Offset p1, Offset p2, Paint paint) {
+  void _drawDashedLine(Canvas canvas, Offset p1, Offset p2, Paint paint, {double dashWidth = 8.0, double dashSpace = 6.0}) {
     final double dx = p2.dx - p1.dx;
     final double dy = p2.dy - p1.dy;
     final double distance = sqrt(dx * dx + dy * dy);
-    
-    final double dashWidth = 8.0;
-    final double dashSpace = 6.0;
-    
-    final double numDashes = distance / (dashWidth + dashSpace);
+    if (distance == 0) return;
+
+    final double step = dashWidth + dashSpace;
+    final int numDashes = (distance / step).floor();
 
     for (int i = 0; i < numDashes; i++) {
-      final double progress = i / numDashes;
-      final double nextProgress = (i + 0.6) / numDashes;
-      
+      final double startFraction = (i * step) / distance;
+      final double endFraction = (i * step + dashWidth) / distance;
+
       canvas.drawLine(
-        Offset(p1.dx + dx * progress, p1.dy + dy * progress),
-        Offset(p1.dx + dx * nextProgress, p1.dy + dy * nextProgress),
+        Offset(p1.dx + dx * startFraction, p1.dy + dy * startFraction),
+        Offset(p1.dx + dx * min(1.0, endFraction), p1.dy + dy * min(1.0, endFraction)),
         paint,
       );
     }
@@ -795,3 +867,4 @@ class CablePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CablePainter oldDelegate) => true;
 }
+

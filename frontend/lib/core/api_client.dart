@@ -3,7 +3,10 @@ import 'package:http/http.dart' as http;
 import '../models/network.dart';
 
 class ApiClient {
-  static const String _baseUrl = 'http://127.0.0.1:8000';
+  static const String _baseUrl = String.fromEnvironment(
+    'BACKEND_URL',
+    defaultValue: 'http://127.0.0.1:8000',
+  );
 
   Future<Map<String, dynamic>> checkHealth() async {
     try {

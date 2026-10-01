@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/device.dart';
 import '../services/simulator_state.dart';
 import '../widgets/device_toolbox.dart';
@@ -149,31 +150,43 @@ class _SimulatorScreenState extends State<SimulatorScreen> with SingleTickerProv
     return ListenableBuilder(
       listenable: widget.state,
       builder: (context, _) {
-        return Scaffold(
-          body: Column(
-            children: [
-              // Top Section: Toolbox | Canvas | Inspector
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // LEFT: Toolbox
-                    DeviceToolbox(state: widget.state),
+        return Focus(
+          autofocus: true,
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () => widget.state.undo(),
+              const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): () => widget.state.undo(),
+              const SingleActivator(LogicalKeyboardKey.keyY, control: true): () => widget.state.redo(),
+              const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () => widget.state.redo(),
+              const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): () => widget.state.redo(),
+            },
+            child: Scaffold(
+              body: Column(
+                children: [
+                  // Top Section: Toolbox | Canvas | Inspector
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // LEFT: Toolbox
+                        DeviceToolbox(state: widget.state),
 
-                    // CENTER: Interactive Canvas
-                    Expanded(
-                      child: NetworkCanvas(state: widget.state),
+                        // CENTER: Interactive Canvas
+                        Expanded(
+                          child: NetworkCanvas(state: widget.state),
+                        ),
+
+                        // RIGHT: OSI / Device Inspector
+                        OsiInspector(state: widget.state),
+                      ],
                     ),
+                  ),
 
-                    // RIGHT: OSI / Device Inspector
-                    OsiInspector(state: widget.state),
-                  ],
-                ),
+                  // BOTTOM: Controls & Message Bar
+                  SimulationControls(state: widget.state),
+                ],
               ),
-
-              // BOTTOM: Controls & Message Bar
-              SimulationControls(state: widget.state),
-            ],
+            ),
           ),
         );
       },

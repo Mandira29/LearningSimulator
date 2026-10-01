@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/simulator_state.dart';
 import '../theme/app_theme.dart';
+import 'subnet_calculator_modal.dart';
+import 'wireshark_inspector_modal.dart';
+
+
 
 class SimulationControls extends StatelessWidget {
   final SimulatorState state;
@@ -184,6 +189,105 @@ class SimulationControls extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
               ),
+              const SizedBox(width: 12),
+
+              // Undo Button
+              IconButton(
+                tooltip: 'Undo (Ctrl+Z)',
+                onPressed: state.canUndo && !state.isAnimating ? () => state.undo() : null,
+                icon: const Icon(Icons.undo, size: 20),
+                color: isDark ? AppColors.primaryAccent : const Color(0xFF0284C7),
+              ),
+
+              // Redo Button
+              IconButton(
+                tooltip: 'Redo (Ctrl+Y)',
+                onPressed: state.canRedo && !state.isAnimating ? () => state.redo() : null,
+                icon: const Icon(Icons.redo, size: 20),
+                color: isDark ? AppColors.primaryAccent : const Color(0xFF0284C7),
+              ),
+
+              const SizedBox(width: 4),
+
+              // Subnet Calculator Modal Button
+              IconButton(
+                tooltip: 'Subnet Calculator',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => const SubnetCalculatorModal(),
+                  );
+                },
+                icon: const Icon(Icons.calculate_outlined, size: 20),
+                color: AppColors.secondaryAccent,
+              ),
+
+              // Chaos Fault Injector Button
+              IconButton(
+                tooltip: 'Inject Chaos / Random Fault',
+                onPressed: state.isAnimating ? null : () => state.injectRandomChaosFault(),
+                icon: const Icon(Icons.bolt, size: 20),
+                color: Colors.amber,
+              ),
+
+              // Wireshark Packet Inspector Button
+              IconButton(
+                tooltip: 'Wireshark Packet Inspector',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => WiresharkInspectorModal(
+                      activePacket: state.simulationPacket,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.search, size: 20),
+                color: AppColors.success,
+              ),
+
+              // Save JSON Topology Button
+              ElevatedButton.icon(
+                onPressed: (state.devices.isEmpty || state.isAnimating)
+                    ? null
+                    : () {
+                        state.exportTopologyFile();
+                      },
+                icon: const Icon(Icons.save_alt, size: 18),
+                label: const Text('Save JSON'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Load JSON Topology Button
+              ElevatedButton.icon(
+                onPressed: state.isAnimating
+                    ? null
+                    : () {
+                        state.importTopologyFile();
+                      },
+                icon: const Icon(Icons.file_upload_outlined, size: 18),
+                label: const Text('Load JSON'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // JSON Inspector & Presets Modal Button
+              IconButton(
+                tooltip: 'Inspect Topology JSON & Presets',
+                onPressed: () {
+                  _showTopologyJsonModal(context, state);
+                },
+                icon: const Icon(Icons.code, size: 20),
+                color: isDark ? AppColors.primaryAccent : const Color(0xFF0284C7),
+              ),
 
               const Spacer(),
 
@@ -215,6 +319,7 @@ class SimulationControls extends StatelessWidget {
               ),
             ],
           ),
+
         ],
       ),
     );
@@ -347,4 +452,121 @@ class SimulationControls extends StatelessWidget {
       ],
     );
   }
+
+  void _showTopologyJsonModal(BuildContext context, SimulatorState state) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final jsonText = state.exportTopologyJson();
+    final controller = TextEditingController(text: jsonText);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.code, color: AppColors.primaryAccent),
+              const SizedBox(width: 10),
+              const Text('Topology JSON Manager', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 600,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Export, import, edit, or copy raw JSON topology definition:',
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: theme.dividerColor),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    ),
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.all(12),
+                      border: InputBorder.none,
+                      hintText: 'Paste topology JSON here...',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('Presets:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.lan_outlined, size: 14),
+                      label: const Text('Basic LAN', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        state.loadPresetTopology('basic_lan');
+                        Navigator.of(ctx).pop();
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.router_outlined, size: 14),
+                      label: const Text('Dual Subnet Router', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        state.loadPresetTopology('dual_subnet');
+                        Navigator.of(ctx).pop();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('Copy JSON'),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: controller.text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('JSON copied to clipboard!'), duration: Duration(seconds: 2)),
+                );
+              },
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.file_upload, size: 16),
+              label: const Text('Load From Text'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryAccent,
+                foregroundColor: const Color(0xFF0F172A),
+              ),
+              onPressed: () {
+                final ok = state.loadTopologyJson(controller.text);
+                if (ok) {
+                  Navigator.of(ctx).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
+

@@ -8,6 +8,9 @@ class Device {
   double y;
   final String ipAddress;
   final String macAddress;
+  final String subnetMask;
+  final String defaultGateway;
+  final String portStatus; // up, down
 
   Device({
     required this.id,
@@ -17,6 +20,9 @@ class Device {
     required this.y,
     required this.ipAddress,
     required this.macAddress,
+    this.subnetMask = '255.255.255.0',
+    this.defaultGateway = '192.168.1.1',
+    this.portStatus = 'up',
   });
 
   // Factory helper to create a device with automatically generated details
@@ -43,8 +49,6 @@ class Device {
       mac = 'CC:CC:CC:00:00:$macHex';
     } else {
       // SWITCH
-      // Switches operate at Layer 2 and usually don't have an IP in simple simulations,
-      // but let's provide a mock IP/MAC as requested.
       final lastOctet = 50 + rand.nextInt(40);
       ip = '192.168.1.$lastOctet';
       final macHex = lastOctet.toRadixString(16).padLeft(2, '0').toUpperCase();
@@ -59,6 +63,9 @@ class Device {
       y: y,
       ipAddress: ip,
       macAddress: mac,
+      subnetMask: '255.255.255.0',
+      defaultGateway: '192.168.1.1',
+      portStatus: 'up',
     );
   }
 
@@ -71,6 +78,9 @@ class Device {
       y: (json['y'] as num).toDouble(),
       ipAddress: json['ipAddress'] as String,
       macAddress: json['macAddress'] as String,
+      subnetMask: (json['subnetMask'] as String?) ?? '255.255.255.0',
+      defaultGateway: (json['defaultGateway'] as String?) ?? '192.168.1.1',
+      portStatus: (json['portStatus'] as String?) ?? 'up',
     );
   }
 
@@ -83,6 +93,9 @@ class Device {
       'y': y,
       'ipAddress': ipAddress,
       'macAddress': macAddress,
+      'subnetMask': subnetMask,
+      'defaultGateway': defaultGateway,
+      'portStatus': portStatus,
     };
   }
 
@@ -94,6 +107,9 @@ class Device {
     double? y,
     String? ipAddress,
     String? macAddress,
+    String? subnetMask,
+    String? defaultGateway,
+    String? portStatus,
   }) {
     return Device(
       id: id ?? this.id,
@@ -103,6 +119,9 @@ class Device {
       y: y ?? this.y,
       ipAddress: ipAddress ?? this.ipAddress,
       macAddress: macAddress ?? this.macAddress,
+      subnetMask: subnetMask ?? this.subnetMask,
+      defaultGateway: defaultGateway ?? this.defaultGateway,
+      portStatus: portStatus ?? this.portStatus,
     );
   }
 }

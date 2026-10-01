@@ -1,6 +1,19 @@
 # NetVisual Academy: Interactive Network Learning Simulator
 
-NetVisual Academy is an interactive tool designed to help students and developers visualize network topologies, track packet transmission step-by-step, and inspect headers across different layers of the OSI model. The project features a gamified **Troubleshooting Lab** with levels that challenge users to diagnose and repair network faults (e.g., broken cables, IP subnet mismatches).
+NetVisual Academy is an interactive tool designed to help students and developers visualize network topologies, track packet transmission step-by-step, and inspect headers across different layers of the OSI model. The project features a gamified **Troubleshooting Lab** with levels that challenge users to diagnose and repair network faults (e.g., broken cables, IP subnet mismatches), as well as complete **Topology Save / Load & JSON Export** capabilities.
+
+### Key Features
+* 🧮 **Subnet Calculator Modal**: Calculate network IDs, broadcast IPs, wildcard masks, usable host ranges, and binary representations on the fly.
+* 🦈 **Wireshark-Style Packet Inspector**: Click any packet to view deep Ethernet II, IPv4, and ICMP protocol trees with side-by-side hex dump and decoded text.
+* ↩️ **Undo / Redo System**: Full history stack with keyboard shortcut support (`Ctrl+Z` to undo, `Ctrl+Y` / `Ctrl+Shift+Z` to redo).
+* ⚡ **Chaos Fault Scenario Injector**: Inject unexpected network faults (duplicate IPs, shutdown ports, broken cables, subnet conflicts) with one click.
+* ⏱️ **Time Attack Mode**: Fix network misconfigurations against a 60-second countdown timer for bonus XP multipliers.
+* 📝 **Post-Lab Quiz Engine**: Theoretical knowledge checks after lab sessions to verify learning before unlocking module completion.
+* 💾 **Save & Load JSON Topologies**: Export custom network layouts as `.json` files or import existing topology files.
+* 📋 **JSON Code Inspector & Presets**: Copy topology definitions to the clipboard or instantly load sample presets (e.g., Basic LAN, Dual Subnet Router).
+* 🔌 **Hands-On Physical Cable Selection**: Choose between Straight-Through, Crossover, Fiber, and Console cables with live compatibility checks.
+* 🖥️ **Device Config & Interactive Terminal**: Configure IP addresses, subnet masks, default gateways, toggle administrative port states (UP/DOWN), and execute CLI commands (`ping`, `ipconfig`, `show ip route`).
+* 📊 **OSI 7-Layer Packet Breakdown**: Step-by-step visual packet animation and layer encapsulation inspection.
 
 ---
 
