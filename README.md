@@ -3,6 +3,7 @@
 NetVisual Academy is an interactive tool designed to help students and developers visualize network topologies, track packet transmission step-by-step, and inspect headers across different layers of the OSI model. The project features a gamified **Troubleshooting Lab** with levels that challenge users to diagnose and repair network faults (e.g., broken cables, IP subnet mismatches), as well as complete **Topology Save / Load & JSON Export** capabilities.
 
 ### Key Features
+* 📚 **Course Modules & Learning Path**: Quick Navigation tab and dashboard view for structured learning (Physical Layer & Cabling, IP Subnetting & Routing, OSI Encapsulation, Advanced Troubleshooting).
 * 🧮 **Subnet Calculator Modal**: Calculate network IDs, broadcast IPs, wildcard masks, usable host ranges, and binary representations on the fly.
 * 🦈 **Wireshark-Style Packet Inspector**: Click any packet to view deep Ethernet II, IPv4, and ICMP protocol trees with side-by-side hex dump and decoded text.
 * ↩️ **Undo / Redo System**: Full history stack with keyboard shortcut support (`Ctrl+Z` to undo, `Ctrl+Y` / `Ctrl+Shift+Z` to redo).
@@ -15,6 +16,7 @@ NetVisual Academy is an interactive tool designed to help students and developer
 * 🖥️ **Device Config & Interactive Terminal**: Configure IP addresses, subnet masks, default gateways, toggle administrative port states (UP/DOWN), and execute CLI commands (`ping`, `ipconfig`, `show ip route`).
 * 📊 **OSI 7-Layer Packet Breakdown**: Step-by-step visual packet animation and layer encapsulation inspection.
 
+
 ---
 
 ## System Architecture
@@ -24,12 +26,93 @@ graph TD
     A[Flutter Frontend - Web/Desktop] <-->|HTTP API Ports 5000 -> 8000| B[FastAPI Backend - Python]
     A -->|Visual Tracer & OSI Inspector| C[User Interface Canvas]
     B -->|BFS Pathfinding & Subnet Validation| D[Simulation Engine]
+    B <-->|SQLAlchemy ORM| E[(SQLite Database netvisual.db)]
 ```
 
 * **Frontend**: Built with Flutter (Web/Desktop targets).
-* **Backend**: Powered by FastAPI (Python), handling topology validation, pathfinding, and subnet checking.
+* **Backend Engine**: Powered by FastAPI (Python), handling topology validation, pathfinding, and packet structure generation.
+* **Database Layer**: SQLite (`netvisual.db`) with SQLAlchemy ORM for persisting user profiles, saved topologies, and troubleshooting level progress.
 
 ---
+
+## Database Architecture & Schema
+
+NetVisual Academy utilizes a lightweight, zero-configuration **SQLite** relational database (`backend/netvisual.db`) integrated via **SQLAlchemy 2.0 ORM** and FastAPI dependencies.
+
+### 📊 Database Schema (`netvisual.db`)
+
+1. **`users` Table**:
+   - `id` (INTEGER, Primary Key)
+   - `username` (VARCHAR(50), Unique, Indexed)
+   - `email` (VARCHAR(100), Unique, Indexed)
+   - `role` (VARCHAR(30) - Student / Teacher / Admin)
+   - `created_at` (DATETIME)
+
+2. **`topologies` Table**:
+   - `id` (INTEGER, Primary Key)
+   - `title` (VARCHAR(100))
+   - `description` (TEXT)
+   - `canvas_json` (TEXT - Encoded JSON of workspace devices, cables, and configurations)
+   - `user_id` (INTEGER, Foreign Key -> `users.id`)
+   - `created_at` (DATETIME)
+   - `updated_at` (DATETIME)
+
+3. **`user_progress` Table**:
+   - `id` (INTEGER, Primary Key)
+   - `user_id` (INTEGER, Foreign Key -> `users.id`)
+   - `level_id` (INTEGER - Level 1, 2, 3...)
+   - `level_name` (VARCHAR(100))
+   - `completed` (BOOLEAN)
+   - `stars` (INTEGER - 1 to 3 stars)
+   - `score` (INTEGER - Earned XP)
+   - `updated_at` (DATETIME)
+
+### 🔌 Database API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/users` | Register a new user profile |
+| `GET` | `/api/users` | Retrieve registered users |
+| `POST` | `/api/topologies` | Save a network canvas topology to DB |
+| `GET` | `/api/topologies` | Fetch saved network topologies |
+| `GET` | `/api/topologies/{id}` | Load specific topology layout by ID |
+| `DELETE` | `/api/topologies/{id}` | Remove saved topology from DB |
+| `POST` | `/api/progress` | Sync completed troubleshooting lab score & XP |
+| `GET` | `/api/progress` | Fetch level completion progress history |
+
+---
+
+## 📴 Offline Mode & Local Saved Work
+
+NetVisual Academy is engineered to run **100% offline** without needing an active internet connection or external servers.
+
+### 💾 Saving Work Locally
+
+Users have two mechanisms to save their canvas network layouts locally on their device:
+
+1. **In-App Local Saved Work Manager (`SharedPreferences`)**:
+   - Click **`Saved Work (Offline)`** in the bottom action bar.
+   - Enter a custom layout name and click **`Save Local`**.
+   - Your topologies are saved directly into your device's browser `localStorage` / application storage slots.
+   - Restore or delete any saved layout with a single click.
+
+2. **Local JSON File Export & Import (`TopologyFileHelper`)**:
+   - Click **`Save JSON`** to export the current workspace topology as a downloadable `.json` file (`network_topology_<timestamp>.json`).
+   - Click **`Load JSON`** to open your OS file picker and load any previously saved `.json` file from your local hard drive.
+
+### ⚡ Standalone Client Engine (Offline Fallback)
+
+If the FastAPI Python server is offline or unreachable, NetVisual Academy automatically switches to its **built-in Dart BFS Simulation Engine**. All of the following core features function **100% offline**:
+- 🌐 Drag-and-Drop Canvas & Cable Wiring
+- 📡 Ping Simulation & Packet Path Validation
+- 🧮 Subnet Calculator Modal
+- 🦈 Wireshark-Style Packet Inspector & OSI 7-Layer Breakdown
+- 🎮 Gamified Troubleshooting Levels (Levels 1–3 with XP & Victory Modals)
+- ⏱️ Time Attack Mode & Chaos Fault Injector
+
+---
+
+
 
 ## Prerequisites
 

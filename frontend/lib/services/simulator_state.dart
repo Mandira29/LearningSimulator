@@ -2,12 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/device.dart';
 import '../models/connection.dart';
 import '../models/network.dart';
 import '../models/packet.dart';
+import '../models/queued_packet.dart';
+import '../models/challenge.dart';
+import '../models/challenge_data.dart';
 import 'simulation_service.dart';
 import 'topology_file_helper.dart';
+
 
 class SimulatorState extends ChangeNotifier {
   final SimulationService _simulationService = SimulationService();
@@ -15,6 +20,14 @@ class SimulatorState extends ChangeNotifier {
 
   final List<Device> _devices = [];
   final List<Connection> _connections = [];
+
+  // Challenges System state
+  List<Challenge> _challenges = getDefaultChallenges();
+  Challenge? _activeChallenge;
+  int _challengeHintsUsed = 0;
+
+  // Custom User Packet Queue
+  final List<QueuedPacket> _packetQueue = [];
 
   // History Stacks for Undo/Redo
   final List<Network> _undoStack = [];
@@ -57,8 +70,26 @@ class SimulatorState extends ChangeNotifier {
   int? _requestedTab;
   bool _isBackendConnected = false;
 
+  // Level 1: "Getting started" Objectives tracking
+  final Map<String, bool> _level1Objectives = {
+    'restart': false, // Objective 1: Use the restart button in the top left to start the simulation over
+    'pause': false,   // Objective 2: Pause the simulation
+    'inspect_pc': false, // Objective 3: Click on a computer to see its properties
+    'inspect_packet': false, // Objective 4: Click on a packet (the circles) to see its properties
+    'add_packet': false, // Objective 5: Click the + button and add a new packet
+    'send_packet': false, // Objective 6: Click the send arrow beside the packet you just added
+  };
+
+  // Database State
+  Map<String, dynamic>? _dbStats;
+  Map<int, Map<String, dynamic>> _completedDbLevels = {};
+  List<dynamic> _dbTopologiesList = [];
+
+
   SimulatorState() {
     _startBackendHealthCheck();
+    fetchDatabaseStats();
+    fetchChallenges();
   }
 
   void _startBackendHealthCheck() {
@@ -68,20 +99,68 @@ class SimulatorState extends ChangeNotifier {
     });
   }
 
+  bool _isDisposed = false;
+  Timer? _level1InitialTimer;
+
   @override
   void dispose() {
+    _isDisposed = true;
     _healthCheckSub?.cancel();
+    _level1InitialTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
   }
 
   Future<void> checkBackendHealth() async {
     try {
       _isBackendConnected = await _simulationService.checkBackendConnection();
+      if (_isBackendConnected) {
+        await fetchDatabaseStats();
+      }
     } catch (_) {
       _isBackendConnected = false;
     }
     notifyListeners();
   }
+
+  Future<void> fetchDatabaseStats() async {
+    try {
+      final stats = await _simulationService.fetchDashboardStatsFromDb();
+      if (stats != null) {
+        _dbStats = stats;
+      }
+
+      final progressList = await _simulationService.fetchUserProgressFromDb();
+      final Map<int, Map<String, dynamic>> newMap = {};
+      for (final item in progressList) {
+        if (item is Map<String, dynamic>) {
+          final levelId = item['level_id'] as int?;
+          if (levelId != null) {
+            newMap[levelId] = item;
+          }
+        }
+      }
+      _completedDbLevels = newMap;
+
+      final tops = await _simulationService.getSavedTopologiesFromDb();
+      _dbTopologiesList = tops;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching DB stats: $e');
+    }
+  }
+
+  // Database Getters
+  Map<String, dynamic>? get dbStats => _dbStats;
+  Map<int, Map<String, dynamic>> get completedDbLevels => _completedDbLevels;
+  List<dynamic> get dbTopologiesList => _dbTopologiesList;
+
 
   // Getters
   List<Device> get devices => _devices;
@@ -106,7 +185,29 @@ class SimulatorState extends ChangeNotifier {
   double get animationProgress => _animationProgress;
   int get currentSegmentIndex => _currentSegmentIndex;
 
-  // Troubleshooting getters
+  int get currentActiveOsiLayer {
+    if (!_isAnimating) return 3;
+    if (_animationProgress < 0.12) return 7; // Application Payload
+    if (_animationProgress < 0.22) return 6; // Presentation
+    if (_animationProgress < 0.30) return 5; // Session
+    if (_animationProgress < 0.38) return 4; // Transport Segment
+    if (_animationProgress < 0.46) return 3; // Network Packet (IPv4)
+    if (_animationProgress < 0.54) return 2; // Data Link Frame (MAC)
+    if (_animationProgress < 0.78) return 1; // Physical Cable Bitstream
+    if (_animationProgress < 0.86) return 2; // Frame Decapsulation
+    if (_animationProgress < 0.94) return 3; // Packet Inspection
+    return 7; // Application Payload Unwrapped
+  }
+
+  String get currentEncapsulationPhase {
+    if (!_isAnimating) return 'READY / IDLE';
+    if (_animationProgress < 0.54) return 'ENCAPSULATING (L7 ➔ L1)';
+    if (_animationProgress < 0.78) return 'PHYSICAL BITSTREAM (L1 CABLE)';
+    return 'DECAPSULATING (L1 ➔ L7)';
+  }
+
+
+  // Troubleshooting & Level 1 getters
   int? get activeLevelIndex => _activeLevelIndex;
   int get levelXp => _levelXp;
   int get hintsUsed => _hintsUsed;
@@ -114,8 +215,129 @@ class SimulatorState extends ChangeNotifier {
   int? get requestedTab => _requestedTab;
   bool get isBackendConnected => _isBackendConnected;
 
+  // Challenge System Getters
+  List<Challenge> get challenges => _challenges;
+  Challenge? get activeChallenge => _activeChallenge;
+  int get challengeHintsUsed => _challengeHintsUsed;
+
+  // Level 1 Objectives & Packet Queue Getters
+  Map<String, bool> get level1Objectives => _level1Objectives;
+  int get level1CompletedCount => _level1Objectives.values.where((v) => v).length;
+  List<QueuedPacket> get packetQueue => _packetQueue;
+
+  void completeObjective(String key) {
+    if (_activeLevelIndex == 1 && _level1Objectives.containsKey(key)) {
+      if (_level1Objectives[key] == false) {
+        _level1Objectives[key] = true;
+        _checkLevel1Completion();
+        notifyListeners();
+      }
+    }
+  }
+
+  void _checkLevel1Completion() {
+    if (_activeLevelIndex == 1 && !_levelCompleted) {
+      final allDone = _level1Objectives.values.every((v) => v);
+      if (allDone) {
+        _levelCompleted = true;
+        _simulationMessage = '🎉 Level 1 Complete! All objectives achieved. Great job!';
+        _simulationService.saveLevelProgressToDb(
+          levelId: 1,
+          levelName: 'Getting started',
+          stars: 3,
+          score: 100,
+        ).then((_) {
+          fetchDatabaseStats();
+        });
+      }
+    }
+  }
+
+  void addPacketToQueue({
+    String? sourceId,
+    String? destId,
+    String protocol = 'ICMP',
+    String payload = 'Ping Packet',
+  }) {
+    final src = (sourceId != null && sourceId.isNotEmpty)
+        ? sourceId
+        : (_devices.isNotEmpty ? _devices.first.id : '');
+    final dst = (destId != null && destId.isNotEmpty)
+        ? destId
+        : (_devices.length > 1 ? _devices[1].id : (_devices.isNotEmpty ? _devices.first.id : ''));
+
+    final srcDev = _devices.firstWhere(
+      (d) => d.id == src,
+      orElse: () => Device(id: src, type: 'PC', name: 'PC1', x: 0, y: 0, ipAddress: '', macAddress: ''),
+    );
+    final dstDev = _devices.firstWhere(
+      (d) => d.id == dst,
+      orElse: () => Device(id: dst, type: 'PC', name: 'PC2', x: 0, y: 0, ipAddress: '', macAddress: ''),
+    );
+
+    final newPkt = QueuedPacket(
+      id: 'pkt_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'Packet ${_packetQueue.length + 1}',
+      sourceDeviceId: src,
+      destinationDeviceId: dst,
+      sourceName: srcDev.name,
+      destName: dstDev.name,
+      protocol: protocol.isEmpty ? 'ICMP' : protocol,
+      payload: payload.isEmpty ? 'Ping Packet' : payload,
+    );
+
+    _packetQueue.add(newPkt);
+    _simulationMessage = '✓ Added ${newPkt.name} (${newPkt.sourceName} → ${newPkt.destName}) to queue.';
+    if (_activeLevelIndex == 1) {
+      completeObjective('add_packet');
+    }
+    notifyListeners();
+  }
+
+  void removePacketFromQueue(String id) {
+    _packetQueue.removeWhere((p) => p.id == id);
+    notifyListeners();
+  }
+
+  void dispatchPacketFromQueue(QueuedPacket pkt) {
+    setSourceDevice(pkt.sourceDeviceId);
+    setDestinationDevice(pkt.destinationDeviceId);
+    runPingSimulation();
+    if (_activeLevelIndex == 1) {
+      completeObjective('send_packet');
+    }
+  }
+
+  void inspectPacketCircle() {
+    _selectedDevice = null;
+    _selectedConnection = null;
+    if (!_isPaused && _isAnimating) {
+      pauseAnimation();
+    }
+    if (_activeLevelIndex == 1) {
+      completeObjective('inspect_packet');
+    }
+    notifyListeners();
+  }
+
+  void restartSimulationOver() {
+    if (_activeLevelIndex != null) {
+      startLevel(_activeLevelIndex!);
+      if (_activeLevelIndex == 1) {
+        completeObjective('restart');
+      }
+    } else {
+      clearCanvas();
+    }
+  }
+
   void clearTabRequest() {
     _requestedTab = null;
+  }
+
+  void requestTab(int tabIndex) {
+    _requestedTab = tabIndex;
+    notifyListeners();
   }
 
   Network get network => Network(devices: _devices, connections: _connections);
@@ -167,6 +389,9 @@ class SimulatorState extends ChangeNotifier {
       _handleConnectionModeSelection(device);
     } else {
       _selectedDevice = device;
+      if (_activeLevelIndex == 1 && device.type.toUpperCase() == 'PC') {
+        completeObjective('inspect_pc');
+      }
       notifyListeners();
     }
   }
@@ -407,13 +632,14 @@ class SimulatorState extends ChangeNotifier {
   }
 
   void pauseAnimation() {
-    if (!_isAnimating) return;
     _isPaused = true;
+    if (_activeLevelIndex == 1) {
+      completeObjective('pause');
+    }
     notifyListeners();
   }
 
   void resumeAnimation() {
-    if (!_isAnimating) return;
     _isPaused = false;
     notifyListeners();
   }
@@ -429,10 +655,44 @@ class SimulatorState extends ChangeNotifier {
     _simulationMessage = '✓ PACKET DELIVERED\nPath: ${_simulationPath.join(" → ")}';
     
     if (_activeLevelIndex != null) {
-      _levelCompleted = true;
+      if (_activeLevelIndex == 1) {
+        _checkLevel1Completion();
+      } else {
+        _levelCompleted = true;
+        final int stars = _hintsUsed == 0 ? 3 : (_hintsUsed == 1 ? 2 : 1);
+        final int lvlId = _activeLevelIndex!;
+        final lvlName = lvlId == 2
+            ? 'Broken Cable'
+            : (lvlId == 3 ? 'Incorrect IP' : 'Port Down');
+        _simulationService.saveLevelProgressToDb(
+          levelId: lvlId,
+          levelName: lvlName,
+          stars: stars,
+          score: _levelXp,
+        ).then((_) {
+          fetchDatabaseStats();
+        });
+      }
     }
+
+    // Refresh database stats for packet trace counter
+    fetchDatabaseStats();
     
     notifyListeners();
+  }
+
+  Future<void> recordQuizProgressToDb(int levelId, int xpEarned) async {
+    try {
+      await _simulationService.saveLevelProgressToDb(
+        levelId: levelId,
+        levelName: 'OSI Journey Quiz',
+        stars: 3,
+        score: xpEarned,
+      );
+      await fetchDatabaseStats();
+    } catch (e) {
+      debugPrint('Error recording quiz progress to DB: $e');
+    }
   }
 
   void cancelAnimation() {
@@ -500,12 +760,13 @@ class SimulatorState extends ChangeNotifier {
     _isPaused = false;
 
     if (index == 1) {
-      // Level 1: Broken Cable
+      // Basic Level: Getting started
       final pc1 = Device(
         id: 'pc1_level1',
         type: 'PC',
         name: 'PC1',
-        x: 150,
+        owner: 'Alice (Research Lab)',
+        x: 160,
         y: 220,
         ipAddress: '192.168.1.10',
         macAddress: 'AA:AA:AA:00:00:10',
@@ -514,7 +775,8 @@ class SimulatorState extends ChangeNotifier {
         id: 'sw1_level1',
         type: 'SWITCH',
         name: 'Switch1',
-        x: 350,
+        owner: 'IT Department (Central Switch)',
+        x: 380,
         y: 220,
         ipAddress: '192.168.1.50',
         macAddress: 'BB:BB:BB:00:00:50',
@@ -523,7 +785,8 @@ class SimulatorState extends ChangeNotifier {
         id: 'pc2_level1',
         type: 'PC',
         name: 'PC2',
-        x: 550,
+        owner: 'Bob (Design Dept)',
+        x: 600,
         y: 220,
         ipAddress: '192.168.1.20',
         macAddress: 'AA:AA:AA:00:00:20',
@@ -540,19 +803,30 @@ class SimulatorState extends ChangeNotifier {
         id: 'conn2_level1',
         sourceDeviceId: sw1.id,
         destinationDeviceId: pc2.id,
-        status: 'broken',
+        status: 'active',
       ));
 
       _sourceDeviceId = pc1.id;
       _destinationDeviceId = pc2.id;
       _simulationStatus = 'READY';
-      _simulationMessage = 'Level 1: PC2 is offline. Inspect the cables to diagnose the issue.';
+      _simulationMessage = 'Welcome to Level 1: Getting started! Follow the objectives in the top HUD.';
+
+      _level1Objectives.updateAll((k, v) => false);
+
+      // Trigger initial packet transmission after brief layout pause so user sees packet travelling
+      _level1InitialTimer?.cancel();
+      _level1InitialTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!_isDisposed && _activeLevelIndex == 1 && _devices.length >= 2) {
+          runPingSimulation();
+        }
+      });
     } else if (index == 2) {
-      // Level 2: Incorrect IP
+      // Level 2: Broken Cable
       final pc1 = Device(
         id: 'pc1_level2',
         type: 'PC',
         name: 'PC1',
+        owner: 'Alice (Research Lab)',
         x: 150,
         y: 220,
         ipAddress: '192.168.1.10',
@@ -562,6 +836,7 @@ class SimulatorState extends ChangeNotifier {
         id: 'sw1_level2',
         type: 'SWITCH',
         name: 'Switch1',
+        owner: 'IT Department',
         x: 350,
         y: 220,
         ipAddress: '192.168.1.50',
@@ -571,9 +846,10 @@ class SimulatorState extends ChangeNotifier {
         id: 'pc2_level2',
         type: 'PC',
         name: 'PC2',
+        owner: 'Bob (Design Dept)',
         x: 550,
         y: 220,
-        ipAddress: '192.168.2.20',
+        ipAddress: '192.168.1.20',
         macAddress: 'AA:AA:AA:00:00:20',
       );
       _devices.addAll([pc1, sw1, pc2]);
@@ -588,13 +864,118 @@ class SimulatorState extends ChangeNotifier {
         id: 'conn2_level2',
         sourceDeviceId: sw1.id,
         destinationDeviceId: pc2.id,
+        status: 'broken',
+      ));
+
+      _sourceDeviceId = pc1.id;
+      _destinationDeviceId = pc2.id;
+      _simulationStatus = 'READY';
+      _simulationMessage = 'Level 2: PC2 is offline. Inspect the cables to diagnose the issue.';
+    } else if (index == 3) {
+      // Level 3: Incorrect IP
+      final pc1 = Device(
+        id: 'pc1_level3',
+        type: 'PC',
+        name: 'PC1',
+        owner: 'Alice (Research Lab)',
+        x: 150,
+        y: 220,
+        ipAddress: '192.168.1.10',
+        macAddress: 'AA:AA:AA:00:00:10',
+      );
+      final sw1 = Device(
+        id: 'sw1_level3',
+        type: 'SWITCH',
+        name: 'Switch1',
+        owner: 'IT Department',
+        x: 350,
+        y: 220,
+        ipAddress: '192.168.1.50',
+        macAddress: 'BB:BB:BB:00:00:50',
+      );
+      final pc2 = Device(
+        id: 'pc2_level3',
+        type: 'PC',
+        name: 'PC2',
+        owner: 'Bob (Design Dept)',
+        x: 550,
+        y: 220,
+        ipAddress: '192.168.2.20',
+        macAddress: 'AA:AA:AA:00:00:20',
+      );
+      _devices.addAll([pc1, sw1, pc2]);
+
+      _connections.add(Connection(
+        id: 'conn1_level3',
+        sourceDeviceId: pc1.id,
+        destinationDeviceId: sw1.id,
+        status: 'active',
+      ));
+      _connections.add(Connection(
+        id: 'conn2_level3',
+        sourceDeviceId: sw1.id,
+        destinationDeviceId: pc2.id,
         status: 'active',
       ));
 
       _sourceDeviceId = pc1.id;
       _destinationDeviceId = pc2.id;
       _simulationStatus = 'READY';
-      _simulationMessage = 'Level 2: PC2 is unreachable. Verify if IP addresses are on the same subnet.';
+      _simulationMessage = 'Level 3: PC2 is unreachable. Verify if IP addresses are on the same subnet.';
+    } else if (index == 4) {
+      // Level 4: Interface Port DOWN
+      final pc1 = Device(
+        id: 'pc1_level4',
+        type: 'PC',
+        name: 'PC1',
+        owner: 'Alice (Research Lab)',
+        x: 150,
+        y: 220,
+        ipAddress: '192.168.1.10',
+        macAddress: 'AA:AA:AA:00:00:10',
+        portStatus: 'up',
+      );
+      final sw1 = Device(
+        id: 'sw1_level4',
+        type: 'SWITCH',
+        name: 'Switch1',
+        owner: 'IT Department',
+        x: 350,
+        y: 220,
+        ipAddress: '192.168.1.50',
+        macAddress: 'BB:BB:BB:00:00:50',
+        portStatus: 'up',
+      );
+      final pc2 = Device(
+        id: 'pc2_level4',
+        type: 'PC',
+        name: 'PC2',
+        owner: 'Bob (Design Dept)',
+        x: 550,
+        y: 220,
+        ipAddress: '192.168.1.20',
+        macAddress: 'AA:AA:AA:00:00:20',
+        portStatus: 'down',
+      );
+      _devices.addAll([pc1, sw1, pc2]);
+
+      _connections.add(Connection(
+        id: 'conn1_level4',
+        sourceDeviceId: pc1.id,
+        destinationDeviceId: sw1.id,
+        status: 'active',
+      ));
+      _connections.add(Connection(
+        id: 'conn2_level4',
+        sourceDeviceId: sw1.id,
+        destinationDeviceId: pc2.id,
+        status: 'active',
+      ));
+
+      _sourceDeviceId = pc1.id;
+      _destinationDeviceId = pc2.id;
+      _simulationStatus = 'READY';
+      _simulationMessage = 'Level 4: PC2 interface is administratively DOWN. Toggle port state to UP in node inspector.';
     }
 
     _requestedTab = 1; // Direct redirection to Simulator
@@ -602,6 +983,7 @@ class SimulatorState extends ChangeNotifier {
   }
 
   void exitLevel() {
+    _level1InitialTimer?.cancel();
     _activeLevelIndex = null;
     _levelCompleted = false;
     clearCanvas();
@@ -622,6 +1004,142 @@ class SimulatorState extends ChangeNotifier {
     if (_hintsUsed < 2) {
       _hintsUsed++;
       _levelXp = 100 - (_hintsUsed * 25);
+      notifyListeners();
+    }
+  }
+
+  // =========================================================================
+  // Challenge System Methods
+  // =========================================================================
+
+  Future<void> fetchChallenges() async {
+    try {
+      final list = await _simulationService.fetchChallengesFromDb();
+      if (list.isNotEmpty) {
+        _challenges = list.map((item) => Challenge.fromJson(item as Map<String, dynamic>)).toList();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  void startChallenge(String id) {
+    final ch = _challenges.firstWhere(
+      (c) => c.id == id,
+      orElse: () => getDefaultChallenges().firstWhere((c) => c.id == id),
+    );
+    _activeLevelIndex = null;
+    _level1InitialTimer?.cancel();
+    _activeChallenge = ch.copyWith(status: ChallengeStatus.inProgress);
+    _challengeHintsUsed = 0;
+
+    _devices.clear();
+    _devices.addAll(ch.initialDevices);
+    _connections.clear();
+    _connections.addAll(ch.initialConnections);
+
+    _selectedDevice = null;
+    _selectedConnection = null;
+    _firstSelectedDeviceForConnection = null;
+    _connectionMode = false;
+    _isAnimating = false;
+    _isPaused = false;
+
+    if (ch.initialDevices.isNotEmpty) {
+      _sourceDeviceId = ch.initialDevices.first.id;
+      _destinationDeviceId = ch.initialDevices.last.id;
+    } else {
+      _sourceDeviceId = '';
+      _destinationDeviceId = '';
+    }
+
+    _simulationStatus = 'READY';
+    _simulationMessage = 'Challenge: ${ch.title} loaded. Follow instructions in top HUD.';
+    _simulationPath = [];
+    _simulationPacket = null;
+
+    _requestedTab = 1; // Direct redirection to Simulator view
+    _simulationService.startChallengeOnBackend(id);
+    notifyListeners();
+  }
+
+  Future<void> executeChallengeAction(String actionType, [Map<String, dynamic> payload = const {}]) async {
+    if (_activeChallenge == null) return;
+    final chId = _activeChallenge!.id;
+
+    final res = await _simulationService.executeChallengeAction(
+      challengeId: chId,
+      actionType: actionType,
+      payload: payload,
+    );
+
+    final isSuccess = res['success'] == true;
+    final isCompleted = res['objectiveCompleted'] == true;
+    final updatedProgress = (res['progress'] as Map<String, dynamic>?) ?? _activeChallenge!.progress;
+
+    _activeChallenge = _activeChallenge!.copyWith(
+      progress: updatedProgress,
+      status: isCompleted ? ChallengeStatus.completed : _activeChallenge!.status,
+    );
+
+    // Update challenge in list
+    final idx = _challenges.indexWhere((c) => c.id == chId);
+    if (idx != -1) {
+      _challenges[idx] = _activeChallenge!;
+    }
+
+    if (res['path'] != null) {
+      _simulationPath = (res['path'] as List).map((e) => e.toString()).toList();
+      _simulationStatus = 'SIMULATING';
+    }
+
+    if (res['packet'] != null) {
+      final pMap = res['packet'] as Map<String, dynamic>;
+      _simulationPacket = Packet(
+        sourceDeviceId: pMap['sourceDeviceId']?.toString() ?? _sourceDeviceId,
+        destinationDeviceId: pMap['destinationDeviceId']?.toString() ?? _destinationDeviceId,
+        sourceIP: pMap['sourceIP']?.toString() ?? '192.168.1.10',
+        destinationIP: pMap['destinationIP']?.toString() ?? '192.168.1.20',
+        sourceMAC: pMap['sourceMAC']?.toString() ?? 'AA:AA:AA:00:00:10',
+        destinationMAC: pMap['destinationMAC']?.toString() ?? 'BB:BB:BB:00:00:20',
+        protocol: pMap['protocol']?.toString() ?? 'IPv4',
+        currentLayer: (pMap['currentLayer'] as num?)?.toInt() ?? 3,
+        status: pMap['status']?.toString() ?? 'active',
+        path: _simulationPath,
+      );
+    }
+
+    _simulationMessage = res['message']?.toString() ?? (isSuccess ? 'Action completed.' : 'Action failed.');
+
+    if (isCompleted) {
+      _simulationService.saveLevelProgressToDb(
+        levelId: 100 + _activeChallenge!.number,
+        levelName: 'Challenge: ${_activeChallenge!.title}',
+        stars: 3,
+        score: 150,
+      );
+      fetchDatabaseStats();
+    }
+
+    notifyListeners();
+  }
+
+  void exitChallenge() {
+    _activeChallenge = null;
+    clearCanvas();
+    _requestedTab = 2; // Redirect to Challenges screen
+    notifyListeners();
+  }
+
+  void resetActiveChallenge() {
+    if (_activeChallenge != null) {
+      startChallenge(_activeChallenge!.id);
+    }
+  }
+
+  void showNextChallengeHint() {
+    if (_activeChallenge == null) return;
+    if (_challengeHintsUsed < _activeChallenge!.hints.length) {
+      _challengeHintsUsed++;
       notifyListeners();
     }
   }
@@ -744,6 +1262,99 @@ class SimulatorState extends ChangeNotifier {
     }
     return false;
   }
+
+  // --- Offline Local Device Storage (SharedPreferences) ---
+
+  /// Save current topology into offline local device storage
+  Future<bool> saveTopologyToLocalStorage(String name) async {
+    if (_devices.isEmpty) {
+      _simulationMessage = 'Canvas is empty. Add devices before saving.';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyListJson = prefs.getString('offline_saved_topology_keys') ?? '[]';
+      final List<dynamic> keys = jsonDecode(keyListJson);
+
+      final id = 'local_net_${DateTime.now().millisecondsSinceEpoch}';
+      final entryName = name.trim().isEmpty ? 'Offline Topology ${keys.length + 1}' : name.trim();
+      final jsonStr = exportTopologyJson();
+
+      final record = {
+        'id': id,
+        'name': entryName,
+        'timestamp': DateTime.now().toIso8601String(),
+        'deviceCount': _devices.length,
+        'json': jsonStr,
+      };
+
+      keys.add(id);
+      await prefs.setString('offline_saved_topology_keys', jsonEncode(keys));
+      await prefs.setString('offline_topology_$id', jsonEncode(record));
+
+      // Also persist to backend SQLite Database if available
+      try {
+        await _simulationService.saveTopologyToDb(entryName, 'Saved network layout', jsonStr);
+        await fetchDatabaseStats();
+      } catch (_) {}
+
+      _simulationMessage = '✓ Work saved locally to device: "$entryName"';
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _simulationMessage = '✕ Failed to save work locally: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+
+  /// Get list of saved local offline topologies
+  Future<List<Map<String, dynamic>>> getLocalStorageTopologies() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyListJson = prefs.getString('offline_saved_topology_keys') ?? '[]';
+      final List<dynamic> keys = jsonDecode(keyListJson);
+
+      final List<Map<String, dynamic>> results = [];
+      for (final k in keys) {
+        final itemJson = prefs.getString('offline_topology_$k');
+        if (itemJson != null) {
+          results.add(jsonDecode(itemJson) as Map<String, dynamic>);
+        }
+      }
+      return results;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Load a saved topology from local device storage
+  Future<bool> loadTopologyFromLocalStorage(String jsonContent) async {
+    return loadTopologyJson(jsonContent);
+  }
+
+  /// Delete a saved topology from local device storage
+  Future<bool> deleteTopologyFromLocalStorage(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyListJson = prefs.getString('offline_saved_topology_keys') ?? '[]';
+      final List<dynamic> keys = jsonDecode(keyListJson);
+
+      keys.remove(id);
+      await prefs.setString('offline_saved_topology_keys', jsonEncode(keys));
+      await prefs.remove('offline_topology_$id');
+
+      _simulationMessage = '✓ Deleted saved local topology';
+      notifyListeners();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
 
   /// Load sample preset topologies
   void loadPresetTopology(String presetKey) {

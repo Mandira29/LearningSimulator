@@ -35,7 +35,7 @@ class TroubleshootingScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'TROUBLESHOOTING LAB',
+                      'CHALLENGES & TROUBLESHOOTING LAB',
                       style: textTheme.displayLarge?.copyWith(
                         letterSpacing: 1.5,
                         color: theme.colorScheme.primary,
@@ -43,7 +43,7 @@ class TroubleshootingScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Diagnose the network. Fix the problem. Test your solution.',
+                      'Master the simulator interface. Complete challenges, diagnose faults, and earn XP.',
                       style: textTheme.headlineMedium?.copyWith(
                         color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
                         fontSize: 18,
@@ -117,38 +117,69 @@ class TroubleshootingScreen extends StatelessWidget {
             LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 750;
-                final cards = [
+                final levelCards = [
                   _buildLevelCard(
                     context,
                     levelIndex: 1,
+                    title: 'Getting started',
+                    difficulty: 'Basic',
+                    rewardXp: 100,
+                    description: 'Welcome to the first level! Learn the simulator interface: restart, pause, inspect computer ownership and packet paths, and craft and dispatch new packets.',
+                  ),
+                  _buildLevelCard(
+                    context,
+                    levelIndex: 2,
                     title: 'Broken Cable',
                     difficulty: 'Beginner',
                     rewardXp: 100,
                     description: 'A cable in the local topology is severed. Diagnose which link is faulty, repair the connection, and test it with a Ping.',
                   ),
-                  const SizedBox(height: 24, width: 24),
                   _buildLevelCard(
                     context,
-                    levelIndex: 2,
+                    levelIndex: 3,
                     title: 'Incorrect IP',
                     difficulty: 'Beginner',
                     rewardXp: 100,
                     description: 'A device is configured with an incorrect IP address on a different subnet prefix. Identify the conflict, update the IP, and verify the path.',
+                  ),
+                  _buildLevelCard(
+                    context,
+                    levelIndex: 4,
+                    title: 'Port Down',
+                    difficulty: 'Intermediate',
+                    rewardXp: 150,
+                    description: 'A network interface is administratively shut down (DOWN). Inspect port states in the node properties and re-enable it.',
                   ),
                 ];
 
                 if (isNarrow) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: cards,
+                    children: levelCards.map((card) => Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: card,
+                    )).toList(),
                   );
                 } else {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  return Column(
                     children: [
-                      Expanded(child: cards[0]),
-                      cards[1],
-                      Expanded(child: cards[2]),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: levelCards[0]),
+                          const SizedBox(width: 20),
+                          Expanded(child: levelCards[1]),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: levelCards[2]),
+                          const SizedBox(width: 20),
+                          Expanded(child: levelCards[3]),
+                        ],
+                      ),
                     ],
                   );
                 }
@@ -234,11 +265,17 @@ class TroubleshootingScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final bool isCompleted = state.completedDbLevels.containsKey(levelIndex);
+    final int stars = isCompleted ? (state.completedDbLevels[levelIndex]?['stars'] as int? ?? 3) : 0;
+
     return Card(
       color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+        side: BorderSide(
+          color: isCompleted ? AppColors.success : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          width: isCompleted ? 1.5 : 1.0,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -248,12 +285,35 @@ class TroubleshootingScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Level $levelIndex',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.secondary,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Level $levelIndex',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                    if (isCompleted) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppColors.success, width: 1),
+                        ),
+                        child: Text(
+                          'Completed ✓ (${"⭐" * stars})',
+                          style: const TextStyle(
+                            color: AppColors.success,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -272,6 +332,7 @@ class TroubleshootingScreen extends StatelessWidget {
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
             Text(
               title,

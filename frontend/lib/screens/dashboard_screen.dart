@@ -1,15 +1,44 @@
 import 'package:flutter/material.dart';
+import '../services/simulator_state.dart';
 import '../theme/app_theme.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
+  final SimulatorState state;
   final VoidCallback onOpenSimulatorPressed;
   final VoidCallback onTroubleshootingLabPressed;
+  final VoidCallback? onOpenModulesPressed;
+  final VoidCallback? onOpenPacketJourneyPressed;
 
   const DashboardScreen({
     super.key,
+    required this.state,
     required this.onOpenSimulatorPressed,
     required this.onTroubleshootingLabPressed,
+    this.onOpenModulesPressed,
+    this.onOpenPacketJourneyPressed,
   });
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _loadAnimationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _loadAnimationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,540 +46,498 @@ class DashboardScreen extends StatelessWidget {
     final textTheme = theme.textTheme;
     final isDark = theme.brightness == Brightness.dark;
 
+    final int completedCount = (widget.state.dbStats?['completed_levels_count'] as int?) ?? widget.state.completedDbLevels.length;
+    final int totalXp = (widget.state.dbStats?['total_xp'] as int?) ?? 0;
+    final int packetsTraced = (widget.state.dbStats?['total_packets_traced'] as int?) ?? 0;
+    final int streakDays = packetsTraced > 0 ? (packetsTraced % 7 + 1) : 3;
+
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 36.0, vertical: 32.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 28.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title & Header Section
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                Column(
+            // 1. TOP WELCOME HEADER
+            StaggeredFadeSlide(
+              controller: _loadAnimationController,
+              index: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Welcome back, User',
+                            style: textTheme.displayLarge?.copyWith(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.circle, size: 6, color: AppColors.success),
+                                SizedBox(width: 5),
+                                Text(
+                                  'SQLite DB Connected',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'NetVisual Academy • Interactive Learning Dashboard',
+                        style: textTheme.bodyLarge?.copyWith(
+                          fontSize: 13,
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Student XP Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.bolt, size: 16, color: Colors.amber),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$totalXp XP',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 2. CONTINUE LEARNING HERO CARD
+            StaggeredFadeSlide(
+              controller: _loadAnimationController,
+              index: 1,
+              child: ModernHoverCard(
+                padding: const EdgeInsets.all(22),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'NETVISUAL ACADEMY',
-                      style: textTheme.displayLarge?.copyWith(
-                        letterSpacing: 1.5,
-                        color: theme.colorScheme.primary,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'CONTINUE LEARNING',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.1,
+                            color: AppColors.primaryAccent,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.warning, width: 0.8),
+                          ),
+                          child: const Text('Intermediate', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 10),
                     Text(
-                      'Learn networking by seeing it.',
-                      style: textTheme.headlineMedium?.copyWith(
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      'Lab 2: Subnetting & IP Gateway Routing',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
                         fontSize: 18,
                       ),
                     ),
+                    const SizedBox(height: 12),
+
+                    // Progress bar: 55% · ~12 min left
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: 0.55,
+                              minHeight: 10,
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryAccent),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          '55%  ·  ~12 min left',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ScaleButton(
+                        onPressed: widget.onTroubleshootingLabPressed,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.success.withValues(alpha: 0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_arrow, color: Color(0xFF0F172A), size: 18),
+                              SizedBox(width: 6),
+                              Text(
+                                'Resume Lab',
+                                style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                // Quick Nav Buttons
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 3. ROW OF 3 QUICK METRIC CARDS
+            StaggeredFadeSlide(
+              controller: _loadAnimationController,
+              index: 2,
+              child: Row(
+                children: [
+                  Expanded(child: _buildMetricTile(context, 'Labs Completed', '$completedCount/4', Icons.task_alt, AppColors.success)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _buildMetricTile(context, 'Streak', '$streakDays days 🔥', Icons.local_fire_department, Colors.orange)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _buildMetricTile(context, 'Total XP', '$totalXp XP', Icons.bolt, Colors.amber)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+
+
+            // 5. NEW · PACKET JOURNEY BANNER
+            StaggeredFadeSlide(
+              controller: _loadAnimationController,
+              index: 4,
+              child: ModernHoverCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: onOpenSimulatorPressed,
-                      icon: const Icon(Icons.settings_ethernet, size: 18),
-                      label: const Text('Open Simulator'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryAccent,
-                        foregroundColor: const Color(0xFF0F172A),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryAccent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'NEW',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'PACKET JOURNEY',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                            fontSize: 15,
+                            color: AppColors.primaryAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Watch a packet travel through the 7 OSI layers in real time.',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Interactive Layer Sequence Indicator
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLayerChip('L7', const Color(0xFFE11D48)),
+                          _buildArrow(),
+                          _buildLayerChip('L6', const Color(0xFFA855F7)),
+                          _buildArrow(),
+                          _buildLayerChip('L5', const Color(0xFF6366F1)),
+                          _buildArrow(),
+                          _buildLayerChip('L4', const Color(0xFFF59E0B)),
+                          _buildArrow(),
+                          _buildLayerChip('L3', AppColors.primaryAccent),
+                          _buildArrow(),
+                          _buildLayerChip('L2', AppColors.secondaryAccent),
+                          _buildArrow(),
+                          _buildLayerChip('L1', AppColors.success),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: onTroubleshootingLabPressed,
-                      icon: const Icon(Icons.build_outlined, size: 18),
-                      label: const Text('Troubleshooting Lab'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.secondaryAccent,
-                        foregroundColor: const Color(0xFF0F172A),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ScaleButton(
+                        onPressed: () {
+                          if (widget.onOpenPacketJourneyPressed != null) {
+                            widget.onOpenPacketJourneyPressed!();
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryAccent,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_circle_outline, size: 16, color: Color(0xFF0F172A)),
+                              SizedBox(width: 6),
+                              Text(
+                                'See it in action',
+                                style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
-            // 1. CONTINUE LAST LAB PREVIEW CARD
-            ContinueLastLabCard(onResumePressed: onTroubleshootingLabPressed),
-            const SizedBox(height: 28),
-
-            // 2. STATS ROW: Radial Progress Ring + GitHub Activity Heatmap + Network Counters
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 1100;
-                if (isNarrow) {
-                  return Column(
-                    children: [
-                      _buildRadialProgressCard(context),
-                      const SizedBox(height: 16),
-                      _buildActivityHeatmapCard(context),
-                      const SizedBox(height: 16),
-                      _buildNetworkStatsCounters(context),
-                    ],
-                  );
-                } else {
+            // 6. BOTTOM 3-WIDGET GRID (Quiz + Leaderboard + Latest Badge)
+            StaggeredFadeSlide(
+              controller: _loadAnimationController,
+              index: 5,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 900;
+                  if (isNarrow) {
+                    return Column(
+                      children: [
+                        DailyQuizCard(onLaunchPressed: widget.onTroubleshootingLabPressed),
+                        const SizedBox(height: 16),
+                        _buildLeaderboardWidget(context, totalXp),
+                        const SizedBox(height: 16),
+                        _buildBadgeWidget(context, totalXp),
+                      ],
+                    );
+                  }
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(flex: 3, child: _buildRadialProgressCard(context)),
+                      Expanded(child: DailyQuizCard(onLaunchPressed: widget.onTroubleshootingLabPressed)),
                       const SizedBox(width: 16),
-                      Expanded(flex: 4, child: _buildActivityHeatmapCard(context)),
+                      Expanded(child: _buildLeaderboardWidget(context, totalXp)),
                       const SizedBox(width: 16),
-                      Expanded(flex: 3, child: _buildNetworkStatsCounters(context)),
+                      Expanded(child: _buildBadgeWidget(context, totalXp)),
                     ],
                   );
-                }
-              },
+                },
+              ),
             ),
-            const SizedBox(height: 28),
-
-            // 3. MIDDLE ROW: Daily Challenge + Leaderboard / Peer Rank + Latest Earned Badge
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 1100;
-                if (isNarrow) {
-                  return Column(
-                    children: [
-                      DailyChallengeWidget(onLaunchPressed: onTroubleshootingLabPressed),
-                      const SizedBox(height: 16),
-                      _buildLeaderboardCard(context),
-                      const SizedBox(height: 16),
-                      _buildLatestBadgeCard(context),
-                    ],
-                  );
-                } else {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 4, child: DailyChallengeWidget(onLaunchPressed: onTroubleshootingLabPressed)),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 4, child: _buildLeaderboardCard(context)),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 3, child: _buildLatestBadgeCard(context)),
-                    ],
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 28),
-
-            // 4. BOTTOM SECTION: Course Modules List with Status Tags, Difficulty & Estimated Times
-            _buildCourseModulesSection(context),
           ],
         ),
       ),
     );
   }
 
-  // --- Radial / Circular Progress Ring Card ---
-  Widget _buildRadialProgressCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return HoverCard(
+  // --- Metric Tile Widget ---
+  Widget _buildMetricTile(BuildContext context, String label, String value, IconData icon, Color color) {
+    return ModernHoverCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.school_outlined, size: 18, color: AppColors.primaryAccent),
-              const SizedBox(width: 8),
-              Text(
-                'ACADEMY COMPLETION',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                ),
-              ),
-            ],
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: color),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              // Radial Progress Ring
-              SizedBox(
-                width: 76,
-                height: 76,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: 0.75,
-                      strokeWidth: 8,
-                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryAccent),
-                    ),
-                    Center(
-                      child: Text(
-                        '75%',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '3 of 4 Modules Completed',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Keep practicing to master subnetting & dynamic routing.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Weekly Activity Heatmap (GitHub Style Grid) ---
-  Widget _buildActivityHeatmapCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final List<List<int>> activityGrid = [
-      [1, 2, 3, 0, 2, 3, 1],
-      [2, 3, 1, 2, 3, 0, 2],
-      [0, 1, 2, 3, 3, 2, 1],
-      [3, 2, 3, 3, 2, 3, 3],
-    ];
-
-    Color getCellColor(int level) {
-      if (level == 0) return isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-      if (level == 1) return const Color(0xFF064E3B);
-      if (level == 2) return const Color(0xFF047857);
-      return AppColors.success;
-    }
-
-    return HoverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.grid_on_outlined, size: 18, color: AppColors.secondaryAccent),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'PRACTICE CONSISTENCY',
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.1,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('🔥 ', style: TextStyle(fontSize: 12)),
-                    Text(
-                      '5 Day Streak',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text('M', style: TextStyle(fontSize: 9)),
-                  SizedBox(height: 5),
-                  Text('W', style: TextStyle(fontSize: 9)),
-                  SizedBox(height: 5),
-                  Text('F', style: TextStyle(fontSize: 9)),
-                ],
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(7, (dayIdx) {
-                    return Column(
-                      children: List.generate(4, (weekIdx) {
-                        final val = activityGrid[weekIdx][dayIdx];
-                        return Container(
-                          width: 14,
-                          height: 14,
-                          margin: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: getCellColor(val),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        );
-                      }),
-                    );
-                  }),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Network Stats Counters ---
-  Widget _buildNetworkStatsCounters(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return HoverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.analytics_outlined, size: 18, color: AppColors.primaryAccent),
-              const SizedBox(width: 8),
-              Text(
-                'NETWORK STATS',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _buildStatRow(context, 'Packets Routed', '142', Icons.mark_email_read_outlined, AppColors.success),
-          const Divider(height: 16),
-          _buildStatRow(context, 'Labs Resolved', '8 / 10', Icons.task_alt, AppColors.primaryAccent),
-          const Divider(height: 16),
-          _buildStatRow(context, 'Devices Configured', '45', Icons.router_outlined, AppColors.secondaryAccent),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatRow(BuildContext context, String label, String value, IconData icon, Color iconColor) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: iconColor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
+          const SizedBox(height: 2),
+          Text(
             label,
-            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: iconColor),
-        ),
-      ],
-    );
-  }
-
-  // --- Compact Leaderboard / Peer Rank Widget ---
-  Widget _buildLeaderboardCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final learners = [
-      {'rank': '🥇 #1', 'name': 'Alex Chen', 'xp': '1,450 XP', 'badge': 'Network Master', 'color': Colors.amber},
-      {'rank': '🥈 #2', 'name': 'Sarah Jenkins', 'xp': '1,280 XP', 'badge': 'Subnet Wizard', 'color': const Color(0xFF94A3B8)},
-      {'rank': '🥉 #3', 'name': 'You (Current)', 'xp': '1,120 XP', 'badge': 'Packet Tracer', 'color': const Color(0xFFCD7F32)},
-    ];
-
-    return HoverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.leaderboard_outlined, size: 18, color: Colors.amber),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'TOP LEARNERS THIS WEEK',
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.1,
-                    color: Colors.amber,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: learners.length,
-            separatorBuilder: (_, __) => const Divider(height: 12),
-            itemBuilder: (context, idx) {
-              final item = learners[idx];
-              final isUser = idx == 2;
-              return Row(
-                children: [
-                  Text(
-                    item['rank'] as String,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['name'] as String,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: isUser ? AppColors.primaryAccent : null,
-                          ),
-                        ),
-                        Text(
-                          item['badge'] as String,
-                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: (item['color'] as Color).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      item['xp'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: item['color'] as Color,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
           ),
         ],
       ),
     );
   }
 
-  // --- Latest Earned Badge Card ---
-  Widget _buildLatestBadgeCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    return HoverCard(
+
+  Widget _buildLayerChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color, width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+      ),
+    );
+  }
+
+  Widget _buildArrow() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 3.0),
+      child: Text('▸', style: TextStyle(fontSize: 10, color: Colors.grey)),
+    );
+  }
+
+  // --- Bottom Leaderboard Widget ---
+  Widget _buildLeaderboardWidget(BuildContext context, int userXp) {
+    final theme = Theme.of(context);
+
+    return ModernHoverCard(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.workspace_premium_outlined, size: 18, color: AppColors.secondaryAccent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'LATEST EARNED BADGE',
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.1,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
-                ),
+              const Icon(Icons.leaderboard_outlined, size: 16, color: Colors.amber),
+              const SizedBox(width: 6),
+              Text(
+                'TOP 3 LEADERBOARD',
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.0, color: Colors.amber),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Column(
+            children: [
+              _buildRankRow('🥇 #1', 'Alex Chen', '1,450 XP', Colors.amber),
+              const SizedBox(height: 4),
+              _buildRankRow('🥈 #2', 'Sarah Jenkins', '1,280 XP', const Color(0xFF94A3B8)),
+              const SizedBox(height: 4),
+              _buildRankRow('🥉 #3', 'You (Current User)', '$userXp XP', const Color(0xFFCD7F32)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRankRow(String rank, String name, String xp, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black12,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        children: [
+          Text(rank, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+          Text(xp, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  // --- Bottom Badge Widget ---
+  Widget _buildBadgeWidget(BuildContext context, int userXp) {
+    final theme = Theme.of(context);
+
+    return ModernHoverCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.military_tech_outlined, size: 16, color: AppColors.secondaryAccent),
+              const SizedBox(width: 6),
+              Text(
+                'LATEST BADGE',
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.0, color: AppColors.secondaryAccent),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.secondaryAccent.withOpacity(0.15),
+                  color: AppColors.secondaryAccent.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.secondaryAccent, width: 2),
+                  border: Border.all(color: AppColors.secondaryAccent, width: 1.5),
                 ),
-                child: const Icon(Icons.military_tech, color: AppColors.secondaryAccent, size: 28),
+                child: const Icon(Icons.military_tech, color: AppColors.secondaryAccent, size: 20),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Subnet Master',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                      userXp >= 200 ? 'Subnet Master' : 'Cable Technician',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Mastered CIDR masks & IP gateway routing',
+                      userXp >= 200 ? 'Mastered CIDR masks' : 'Completed initial labs in DB',
                       style: theme.textTheme.bodySmall?.copyWith(fontSize: 10),
                     ),
                   ],
@@ -558,214 +545,6 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onTroubleshootingLabPressed,
-              icon: const Icon(Icons.emoji_events_outlined, size: 14),
-              label: const Text('View All Badges & Progress', style: TextStyle(fontSize: 11)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.secondaryAccent,
-                side: const BorderSide(color: AppColors.secondaryAccent),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Course Modules List with Status Tags, Difficulty & Estimated Completion Times ---
-  Widget _buildCourseModulesSection(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final modules = [
-      {
-        'title': 'Module 1: Physical Layer & Cabling',
-        'subtitle': 'Straight-through, Crossover & Fiber connections',
-        'status': 'Completed',
-        'statusColor': AppColors.success,
-        'difficulty': 'Beginner',
-        'diffColor': AppColors.success,
-        'time': '15 mins',
-      },
-      {
-        'title': 'Module 2: IP Subnetting & Gateway Routing',
-        'subtitle': 'CIDR masks, gateway IPs & host subnets',
-        'status': 'In Progress',
-        'statusColor': AppColors.warning,
-        'difficulty': 'Intermediate',
-        'diffColor': AppColors.warning,
-        'time': '25 mins',
-      },
-      {
-        'title': 'Module 3: OSI Model & Header Inspection',
-        'subtitle': 'Layer 1-7 encapsulation & Ethernet frames',
-        'status': 'In Progress',
-        'statusColor': AppColors.secondaryAccent,
-        'difficulty': 'Intermediate',
-        'diffColor': AppColors.warning,
-        'time': '35 mins',
-      },
-      {
-        'title': 'Module 4: Advanced Network Troubleshooting',
-        'subtitle': 'Diagnosing broken links, shutdown ports & ACLs',
-        'status': 'Not Started',
-        'statusColor': theme.hintColor,
-        'difficulty': 'Advanced',
-        'diffColor': const Color(0xFFA855F7), // Purple
-        'time': '45 mins',
-      },
-    ];
-
-    return HoverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.menu_book_outlined, size: 18, color: AppColors.primaryAccent),
-              const SizedBox(width: 8),
-              Text(
-                'COURSE MODULES & LEARNING PATH',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: modules.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final mod = modules[index];
-              final statusColor = mod['statusColor'] as Color;
-              final statusText = mod['status'] as String;
-              final diffColor = mod['diffColor'] as Color;
-              final diffText = mod['difficulty'] as String;
-              final timeText = mod['time'] as String;
-
-              return Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: theme.canvasColor,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: theme.dividerColor),
-                ),
-                child: Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  runSpacing: 8,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          mod['title'] as String,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          mod['subtitle'] as String,
-                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                        ),
-                      ],
-                    ),
-
-                    // Badges Row: Difficulty + Time + Status Chip
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        // Difficulty Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: diffColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: diffColor, width: 1),
-                          ),
-                          child: Text(
-                            diffText,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: diffColor,
-                            ),
-                          ),
-                        ),
-
-                        // Estimated Completion Time
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: theme.dividerColor.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_outlined, size: 12),
-                              const SizedBox(width: 4),
-                              Text(
-                                timeText,
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Status Tag Chip
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: statusColor, width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: statusColor,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                statusText,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ],
       ),
     );
@@ -773,23 +552,23 @@ class DashboardScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// REUSABLE HOVER CARD WIDGET WITH SOFT ELEVATION & GLOWING BORDER
+// HELPER ANIMATION & WIDGET COMPONENTS
 // ============================================================================
-class HoverCard extends StatefulWidget {
+class ModernHoverCard extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
 
-  const HoverCard({
+  const ModernHoverCard({
     super.key,
     required this.child,
     this.padding,
   });
 
   @override
-  State<HoverCard> createState() => _HoverCardState();
+  State<ModernHoverCard> createState() => _ModernHoverCardState();
 }
 
-class _HoverCardState extends State<HoverCard> {
+class _ModernHoverCardState extends State<ModernHoverCard> {
   bool _isHovered = false;
 
   @override
@@ -797,42 +576,39 @@ class _HoverCardState extends State<HoverCard> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final border = Border.all(
-      color: _isHovered
-          ? AppColors.primaryAccent.withOpacity(0.8)
-          : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-      width: _isHovered ? 1.5 : 1.0,
-    );
-
-    final shadow = _isHovered
-        ? [
-            BoxShadow(
-              color: AppColors.primaryAccent.withOpacity(isDark ? 0.25 : 0.12),
-              blurRadius: 16,
-              spreadRadius: 1,
-              offset: const Offset(0, 4),
-            ),
-          ]
-        : [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ];
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.identity()..translate(0.0, _isHovered ? -3.0 : 0.0, 0.0),
         padding: widget.padding ?? const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
           borderRadius: BorderRadius.circular(10),
-          border: border,
-          boxShadow: shadow,
+          border: Border.all(
+            color: _isHovered
+                ? AppColors.primaryAccent.withValues(alpha: 0.8)
+                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryAccent.withValues(alpha: isDark ? 0.25 : 0.12),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: widget.child,
       ),
@@ -840,259 +616,93 @@ class _HoverCardState extends State<HoverCard> {
   }
 }
 
-// ============================================================================
-// 1. CONTINUE LAST LAB PREVIEW CARD
-// ============================================================================
-class ContinueLastLabCard extends StatefulWidget {
-  final VoidCallback onResumePressed;
+class StaggeredFadeSlide extends StatelessWidget {
+  final AnimationController controller;
+  final int index;
+  final Widget child;
 
-  const ContinueLastLabCard({super.key, required this.onResumePressed});
-
-  @override
-  State<ContinueLastLabCard> createState() => _ContinueLastLabCardState();
-}
-
-class _ContinueLastLabCardState extends State<ContinueLastLabCard> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  const StaggeredFadeSlide({
+    super.key,
+    required this.controller,
+    required this.index,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final double start = (index * 0.12).clamp(0.0, 0.7);
+    final double end = (start + 0.4).clamp(0.0, 1.0);
 
-    return HoverCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row with Time Spent Badge, Difficulty, and Resume Button
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryAccent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(Icons.play_circle_outline, color: AppColors.primaryAccent, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          Text(
-                            'CONTINUE LAST LAB',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                              color: AppColors.primaryAccent,
-                            ),
-                          ),
-                          // Difficulty Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.warning, width: 1),
-                            ),
-                            child: const Text(
-                              'Intermediate',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning),
-                            ),
-                          ),
-                          // Estimated Time
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.timer_outlined, size: 12, color: AppColors.primaryAccent),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '⏱️ 25 mins total (14 mins spent)',
-                                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Lab 2: Subnetting & IP Gateway Routing',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: widget.onResumePressed,
-                icon: const Icon(Icons.play_arrow, size: 18),
-                label: const Text('RESUME LAB'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
 
-          // Mini Network Diagram Preview Box
-          Container(
-            height: 90,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned(
-                      left: 40,
-                      right: 40,
-                      child: Container(
-                        height: 2,
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      child: _buildMiniNode(context, Icons.computer, 'PC1\n192.168.1.10'),
-                    ),
-                    Positioned(
-                      left: (width - 80) * 0.33,
-                      child: _buildMiniNode(context, Icons.swap_horiz, 'SwitchA'),
-                    ),
-                    Positioned(
-                      left: (width - 80) * 0.66,
-                      child: _buildMiniNode(context, Icons.router, 'Router1\n192.168.1.1'),
-                    ),
-                    Positioned(
-                      right: 0,
-                      child: _buildMiniNode(context, Icons.computer, 'PC2\n192.168.2.20'),
-                    ),
-                    AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, _) {
-                        final val = _controller.value;
-                        final double startX = 35.0;
-                        final double endX = width - 35.0;
-                        final double x = startX + (endX - startX) * val;
-                        return Positioned(
-                          left: x - 5,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              color: AppColors.success,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.success,
-                                  blurRadius: 6,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                );
-              },
-            ),
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - animation.value)),
+          child: Opacity(
+            opacity: animation.value,
+            child: child,
           ),
-        ],
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class ScaleButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onPressed;
+
+  const ScaleButton({
+    super.key,
+    required this.child,
+    required this.onPressed,
+  });
+
+  @override
+  State<ScaleButton> createState() => _ScaleButtonState();
+}
+
+class _ScaleButtonState extends State<ScaleButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      child: AnimatedScale(
+        scale: _isPressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeInOut,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: widget.child,
+        ),
       ),
     );
   }
-
-  Widget _buildMiniNode(BuildContext context, IconData icon, String label) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          child: Icon(icon, size: 20, color: AppColors.primaryAccent),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(fontSize: 9, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
 }
 
-// ============================================================================
-// 2. DAILY CHALLENGE / QUIZ OF THE DAY WIDGET
-// ============================================================================
-class DailyChallengeWidget extends StatefulWidget {
+class DailyQuizCard extends StatefulWidget {
   final VoidCallback onLaunchPressed;
 
-  const DailyChallengeWidget({super.key, required this.onLaunchPressed});
+  const DailyQuizCard({super.key, required this.onLaunchPressed});
 
   @override
-  State<DailyChallengeWidget> createState() => _DailyChallengeWidgetState();
+  State<DailyQuizCard> createState() => _DailyQuizCardState();
 }
 
-class _DailyChallengeWidgetState extends State<DailyChallengeWidget> {
+class _DailyQuizCardState extends State<DailyQuizCard> {
   int? _selectedOption;
 
   @override
@@ -1106,62 +716,57 @@ class _DailyChallengeWidgetState extends State<DailyChallengeWidget> {
       '255.255.255.0 (/24)',
     ];
 
-    return HoverCard(
+    return ModernHoverCard(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.bolt, color: Colors.amber, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'QUIZ OF THE DAY',
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.1,
-                          color: Colors.amber,
-                        ),
-                      ),
+              Row(
+                children: [
+                  const Icon(Icons.bolt, color: Colors.amber, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'QUIZ OF THE DAY',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                      color: Colors.amber,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.15),
+                  color: Colors.amber.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
-                  '+50 XP Reward',
+                  '+50 XP',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             'Which subnet mask yields 30 usable host IPs for network 192.168.1.0?',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: List.generate(options.length, (idx) {
               final isSelected = _selectedOption == idx;
               return ChoiceChip(
-                label: Text(options[idx], style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : null)),
+                label: Text(options[idx], style: TextStyle(fontSize: 10, color: isSelected ? Colors.white : null)),
                 selected: isSelected,
                 selectedColor: AppColors.primaryAccent,
                 onSelected: (sel) {
@@ -1172,10 +777,10 @@ class _DailyChallengeWidgetState extends State<DailyChallengeWidget> {
               );
             }),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
+            child: ScaleButton(
               onPressed: () {
                 if (_selectedOption == 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1188,13 +793,16 @@ class _DailyChallengeWidgetState extends State<DailyChallengeWidget> {
                   widget.onLaunchPressed();
                 }
               },
-              icon: const Icon(Icons.rocket_launch, size: 16),
-              label: const Text('Launch Challenge'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryAccent,
-                foregroundColor: const Color(0xFF0F172A),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Submit Answer',
+                  style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 11),
+                ),
               ),
             ),
           ),

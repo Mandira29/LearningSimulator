@@ -18,7 +18,6 @@ class OsiInspector extends StatefulWidget {
 class _OsiInspectorState extends State<OsiInspector> {
   int _selectedOsiLayer = 3; // Default selection: Layer 3
   int _deviceInspectorTab = 0; // 0 = IP Config, 1 = CLI Terminal
-  bool _wasAnimating = false;
 
   String? _lastInspectedDeviceId;
   final TextEditingController _nameController = TextEditingController();
@@ -44,15 +43,41 @@ class _OsiInspectorState extends State<OsiInspector> {
   @override
   void didUpdateWidget(covariant OsiInspector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reset selection to Layer 3 when a new animation sequence begins
-    if (widget.state.isAnimating && !_wasAnimating) {
+    if (widget.state.isAnimating) {
+      _selectedOsiLayer = widget.state.currentActiveOsiLayer;
+    } else if (widget.state.isAnimating != oldWidget.state.isAnimating) {
       _selectedOsiLayer = 3;
     }
-    _wasAnimating = widget.state.isAnimating;
+  }
+
+  Widget _buildHeaderDataRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.state.isAnimating && !widget.state.isPaused) {
+      _selectedOsiLayer = widget.state.currentActiveOsiLayer;
+    }
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -62,7 +87,7 @@ class _OsiInspectorState extends State<OsiInspector> {
     );
 
     return Container(
-      width: 330,
+      width: 350,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSecondaryBg : AppColors.lightBg,
         border: Border(left: borderSide),
@@ -97,11 +122,10 @@ class _OsiInspectorState extends State<OsiInspector> {
   }
 
   bool _showPacketInfo() {
-    return widget.state.isAnimating ||
-        (widget.state.simulationStatus == 'SUCCESS' &&
-            widget.state.selectedDevice == null &&
-            widget.state.selectedConnection == null &&
-            widget.state.simulationPacket != null);
+    return ((widget.state.isAnimating || widget.state.isPaused || widget.state.simulationStatus == 'SUCCESS') &&
+        widget.state.selectedDevice == null &&
+        widget.state.selectedConnection == null &&
+        (widget.state.simulationPacket != null || widget.state.currentFromDevice != null));
   }
 
   Widget _buildContent(BuildContext context) {
@@ -119,8 +143,14 @@ class _OsiInspectorState extends State<OsiInspector> {
   // View 1: Detailed Packet OSI Inspector
   Widget _buildPacketOsiView(BuildContext context) {
     final state = widget.state;
-    final pkt = state.simulationPacket!;
+    final pkt = state.simulationPacket;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final srcIp = pkt?.sourceIP ?? (state.currentFromDevice?.ipAddress ?? '192.168.1.10');
+    final destIp = pkt?.destinationIP ?? (state.currentToDevice?.ipAddress ?? '192.168.1.20');
+    final srcMac = pkt?.sourceMAC ?? (state.currentFromDevice?.macAddress ?? 'AA:AA:AA:00:00:10');
+    final destMac = pkt?.destinationMAC ?? (state.currentToDevice?.macAddress ?? 'BB:BB:BB:00:00:20');
 
     // Format top status message
     Color statusColor = AppColors.primaryAccent;
@@ -128,7 +158,7 @@ class _OsiInspectorState extends State<OsiInspector> {
 
     if (state.isPaused) {
       statusColor = AppColors.warning;
-      statusLabel = 'PAUSED';
+      statusLabel = 'PAUSED (INSPECTING)';
     } else if (state.simulationStatus == 'SUCCESS') {
       statusColor = AppColors.success;
       statusLabel = 'DELIVERED';
@@ -138,71 +168,193 @@ class _OsiInspectorState extends State<OsiInspector> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Packet Status Alert
-        Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: statusColor,
-                shape: BoxShape.circle,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'PACKET $statusLabel',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-                fontSize: 12,
+              const SizedBox(width: 8),
+              Text(
+                'PACKET $statusLabel',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: statusColor,
+                  fontSize: 12,
+                ),
               ),
-            ),
-          ],
+              const Spacer(),
+              if (state.isPaused)
+                TextButton.icon(
+                  onPressed: () => state.resumeAnimation(),
+                  icon: const Icon(Icons.play_arrow, size: 14),
+                  label: const Text('Resume', style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primaryAccent,
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Coming From and Going To Card (Objective 4)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.arrow_circle_up, size: 15, color: AppColors.primaryAccent),
+                  const SizedBox(width: 6),
+                  const Text('Coming from: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      '${state.currentFromDevice?.name ?? "Source PC"} ($srcIp)',
+                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.arrow_circle_down, size: 15, color: AppColors.secondaryAccent),
+                  const SizedBox(width: 6),
+                  const Text('Going to: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      '${state.currentToDevice?.name ?? "Destination PC"} ($destIp)',
+                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 
-        // Pause / Resume Control
-        if (state.isPaused) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.1),
-              border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-              borderRadius: BorderRadius.circular(6),
+        // Live Layer Encapsulation Flow Visualizer Card
+        _buildEncapsulationTreeVisualizer(context, state.currentActiveOsiLayer, srcIp, destIp, srcMac, destMac),
+        const SizedBox(height: 16),
+
+        // Prominent Data Packet Transformation Diagram Card
+        _buildPacketTransformationDiagramCard(context, state.currentActiveOsiLayer, srcIp, destIp, srcMac, destMac),
+        const SizedBox(height: 16),
+
+        // Quick Launch OSI Journey Screen Button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              state.requestTab(5); // Launch Packet Journey screen
+            },
+            icon: const Icon(Icons.alt_route, size: 16),
+            label: const Text('Open Full OSI Packet Journey', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryAccent,
+              foregroundColor: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Prominent Layer 2 (MAC) & Layer 3 (IP) Quick Header Card
+        Card(
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Packet analysis paused at segment ${state.currentSegmentIndex + 1}. Press resume to continue routing.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.warning,
-                    fontSize: 11,
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.analytics_outlined, size: 16, color: AppColors.primaryAccent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'HEADER DATA (L2 & L3)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryAccent,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  onPressed: () => state.resumeAnimation(),
-                  icon: const Icon(Icons.play_arrow, size: 16),
-                  label: const Text('Resume', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryAccent,
-                    foregroundColor: const Color(0xFF0F172A),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+
+                // LAYER 3 (IP DATA)
+                Text(
+                  'LAYER 3 — NETWORK (IP DATA)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
+                const SizedBox(height: 4),
+                _buildHeaderDataRow('Source IP:', srcIp),
+                _buildHeaderDataRow('Dest IP:', destIp),
+                _buildHeaderDataRow('Protocol:', 'IPv4 / ICMP Echo'),
+
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+
+                // LAYER 2 (MAC DATA)
+                Text(
+                  'LAYER 2 — DATA LINK (MAC DATA)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                    color: AppColors.secondaryAccent,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                _buildHeaderDataRow('Source MAC:', srcMac),
+                _buildHeaderDataRow('Dest MAC:', destMac),
+                _buildHeaderDataRow('EtherType:', '0x0800 (IPv4 Frame)'),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-        ],
+        ),
+        const SizedBox(height: 16),
 
-        // OSI Model Layers Header
+        // OSI Model Layers Stack Header
         _buildSectionHeader(context, label: 'INTERACTIVE OSI MODEL LAYERS', icon: Icons.layers_outlined),
         const SizedBox(height: 6),
         Text(
-          'Click any layer (L1–L7) to inspect header details below.',
+          'Click any layer (L1–L7) to inspect detailed headers below.',
           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, fontStyle: FontStyle.italic),
         ),
         const SizedBox(height: 10),
@@ -218,19 +370,369 @@ class _OsiInspectorState extends State<OsiInspector> {
     );
   }
 
+  Widget _buildEncapsulationTreeVisualizer(
+    BuildContext context,
+    int activeLayer,
+    String srcIp,
+    String destIp,
+    String srcMac,
+    String destMac,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textCol = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+
+    final layersInfo = [
+      {
+        'layer': 7,
+        'name': 'L7 App',
+        'label': 'ICMP Echo Payload [32 Bytes Data]',
+        'color': const Color(0xFFE11D48),
+      },
+      {
+        'layer': 4,
+        'name': 'L4 Trans',
+        'label': 'ICMP Header (Type 8, Code 0)',
+        'color': const Color(0xFFF59E0B),
+      },
+      {
+        'layer': 3,
+        'name': 'L3 Net',
+        'label': 'IPv4 Header: $srcIp ➔ $destIp',
+        'color': AppColors.primaryAccent,
+      },
+      {
+        'layer': 2,
+        'name': 'L2 Link',
+        'label': 'Eth II Frame: $srcMac ➔ $destMac',
+        'color': AppColors.secondaryAccent,
+      },
+      {
+        'layer': 1,
+        'name': 'L1 Phys',
+        'label': 'Bitstream: 01001001 01000011 01001101...',
+        'color': AppColors.success,
+      },
+    ];
+
+    return Card(
+      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: AppColors.primaryAccent.withValues(alpha: 0.5), width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.sync_alt, size: 15, color: AppColors.primaryAccent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'LAYER ENCAPSULATION FLOW',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryAccent,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.primaryAccent, width: 0.5),
+                  ),
+                  child: Text(
+                    widget.state.currentEncapsulationPhase,
+                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.primaryAccent),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+
+            Column(
+              children: layersInfo.map((info) {
+                final int layerNum = info['layer'] as int;
+                final String name = info['name'] as String;
+                final String label = info['label'] as String;
+                final Color layerColor = info['color'] as Color;
+
+                final bool isActive = activeLayer == layerNum;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isActive ? layerColor.withValues(alpha: 0.18) : theme.canvasColor,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isActive ? layerColor : theme.dividerColor,
+                      width: isActive ? 1.8 : 0.8,
+                    ),
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: layerColor.withValues(alpha: 0.4),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isActive ? layerColor : layerColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: isActive ? const Color(0xFF0F172A) : layerColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontFamily: 'monospace',
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                            color: isActive ? textCol : theme.textTheme.bodySmall?.color,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isActive) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward, size: 12, color: layerColor),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPacketTransformationDiagramCard(
+    BuildContext context,
+    int activeLayer,
+    String srcIp,
+    String destIp,
+    String srcMac,
+    String destMac,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: AppColors.primaryAccent.withValues(alpha: 0.6), width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.layers, size: 16, color: AppColors.primaryAccent),
+                const SizedBox(width: 6),
+                Text(
+                  'PACKET TRANSFORMATION & ENCAPSULATION',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryAccent,
+                    fontSize: 10,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            // Visual Packet Header Structure Diagram
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildHeaderBox(
+                    title: 'L2 Frame',
+                    subtitle: 'Eth Header\n${srcMac.substring(0, 8)}...',
+                    color: AppColors.secondaryAccent,
+                    isActive: activeLayer <= 2,
+                  ),
+                  const SizedBox(width: 4),
+                  _buildHeaderBox(
+                    title: 'L3 Packet',
+                    subtitle: 'IPv4 Header\n$srcIp',
+                    color: AppColors.primaryAccent,
+                    isActive: activeLayer <= 3,
+                  ),
+                  const SizedBox(width: 4),
+                  _buildHeaderBox(
+                    title: 'L4 Segment',
+                    subtitle: 'ICMP Header\nType 8 / Code 0',
+                    color: const Color(0xFFF59E0B),
+                    isActive: activeLayer <= 4,
+                  ),
+                  const SizedBox(width: 4),
+                  _buildHeaderBox(
+                    title: 'L7 Data',
+                    subtitle: 'Payload\n32 Bytes Ping',
+                    color: const Color(0xFFE11D48),
+                    isActive: activeLayer <= 7,
+                  ),
+                  const SizedBox(width: 4),
+                  _buildHeaderBox(
+                    title: 'L2 FCS',
+                    subtitle: 'CRC Trailer\n0x3F12A89C',
+                    color: AppColors.secondaryAccent,
+                    isActive: activeLayer <= 2,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Encapsulation Step Description
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.canvasColor,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    activeLayer == 1
+                        ? Icons.bolt
+                        : (activeLayer == 2
+                            ? Icons.subtitles
+                            : (activeLayer == 3 ? Icons.router : Icons.data_array)),
+                    size: 14,
+                    color: AppColors.primaryAccent,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _getTransformationStepDescription(activeLayer),
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderBox({
+    required String title,
+    required String subtitle,
+    required Color color,
+    required bool isActive,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? color.withValues(alpha: 0.2) : Colors.black12,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isActive ? color : Colors.grey.withValues(alpha: 0.3),
+          width: isActive ? 1.8 : 0.8,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: isActive ? color : Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 8.5,
+              fontFamily: 'monospace',
+              color: isActive ? Colors.white : Colors.grey,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTransformationStepDescription(int layer) {
+    switch (layer) {
+      case 7:
+        return 'Step 1: Application generates data payload ("Ping ICMP Echo Request").';
+      case 6:
+        return 'Step 2: Presentation formats & encodes data into standard UTF-8 binary.';
+      case 5:
+        return 'Step 3: Session establishes connection parameters between endpoints.';
+      case 4:
+        return 'Step 4: Transport attaches L4 ICMP/TCP Header (Segment created).';
+      case 3:
+        return 'Step 5: Network attaches L3 IPv4 Header with Src/Dest IP (Packet created).';
+      case 2:
+        return 'Step 6: Data Link attaches L2 Ethernet Header with MACs & FCS (Frame created).';
+      case 1:
+      default:
+        return 'Step 7: Physical transmits binary bitstream (NRZ voltage pulses) across copper cable.';
+    }
+  }
+
   Widget _buildOsiStack(BuildContext context) {
+    final activeLayer = widget.state.currentActiveOsiLayer;
     return Column(
       children: [
-        _buildOsiLayerRow(context, layer: 7, name: 'Application', isImplemented: true),
-        _buildOsiLayerRow(context, layer: 6, name: 'Presentation', isImplemented: true),
-        _buildOsiLayerRow(context, layer: 5, name: 'Session', isImplemented: true),
-        _buildOsiLayerRow(context, layer: 4, name: 'Transport', isImplemented: true),
-        _buildOsiLayerRow(context, layer: 3, name: 'Network', isImplemented: true, isActiveSimulation: true),
-        _buildOsiLayerRow(context, layer: 2, name: 'Data Link', isImplemented: true),
-        _buildOsiLayerRow(context, layer: 1, name: 'Physical', isImplemented: true),
+        _buildOsiLayerRow(context, layer: 7, name: 'Application', isImplemented: true, isActiveSimulation: activeLayer == 7),
+        _buildOsiLayerRow(context, layer: 6, name: 'Presentation', isImplemented: true, isActiveSimulation: activeLayer == 6),
+        _buildOsiLayerRow(context, layer: 5, name: 'Session', isImplemented: true, isActiveSimulation: activeLayer == 5),
+        _buildOsiLayerRow(context, layer: 4, name: 'Transport', isImplemented: true, isActiveSimulation: activeLayer == 4),
+        _buildOsiLayerRow(context, layer: 3, name: 'Network', isImplemented: true, isActiveSimulation: activeLayer == 3),
+        _buildOsiLayerRow(context, layer: 2, name: 'Data Link', isImplemented: true, isActiveSimulation: activeLayer == 2),
+        _buildOsiLayerRow(context, layer: 1, name: 'Physical', isImplemented: true, isActiveSimulation: activeLayer == 1),
       ],
     );
   }
+
 
   Widget _buildOsiLayerRow(
     BuildContext context, {
@@ -717,6 +1219,47 @@ class _OsiInspectorState extends State<OsiInspector> {
         const SizedBox(height: 12),
 
         _buildSectionHeader(context, label: 'NETWORK CONFIGURATION', icon: Icons.settings_ethernet),
+        const SizedBox(height: 12),
+
+        // Device Owner Card (Objective 3)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primaryAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.primaryAccent.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.person_pin, color: AppColors.primaryAccent, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'DEVICE OWNER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryAccent,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dev.owner,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 12),
 
         // Device Name

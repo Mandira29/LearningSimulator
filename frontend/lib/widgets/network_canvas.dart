@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../models/connection.dart';
+import '../models/challenge.dart';
 import '../services/simulator_state.dart';
 import '../theme/app_theme.dart';
 
@@ -87,7 +88,16 @@ class NetworkCanvas extends StatelessWidget {
                     child: _buildLevelHUD(context),
                   ),
 
-                // 8. Victory Overlay Card
+                // 8. Challenge System HUD overlay
+                if (state.activeChallenge != null)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    right: 16,
+                    child: _buildChallengeHUD(context),
+                  ),
+
+                // 9. Victory Overlay Card
                 if (state.levelCompleted)
                   Positioned.fill(child: _buildVictoryOverlay(context)),
               ],
@@ -171,18 +181,240 @@ class NetworkCanvas extends StatelessWidget {
     List<String> hints = [];
 
     if (levelIdx == 1) {
-      title = 'Level 1: Broken Cable';
+      final obj = state.level1Objectives;
+      final completedCount = state.level1CompletedCount;
+
+      return Card(
+        color: isDark ? AppColors.darkSurface.withOpacity(0.96) : AppColors.lightSurface.withOpacity(0.96),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+        ),
+        margin: EdgeInsets.zero,
+        elevation: 6,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Row: Title, Progress Badge, Reward XP, Exit Button
+              Row(
+                children: [
+                  Icon(Icons.flag_outlined, size: 20, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Basic level: Getting started',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Progress counter badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (completedCount == 6 ? AppColors.success : AppColors.secondaryAccent).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (completedCount == 6 ? AppColors.success : AppColors.secondaryAccent).withOpacity(0.4),
+                      ),
+                    ),
+                    child: Text(
+                      '$completedCount / 6 Objectives',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: completedCount == 6 ? AppColors.success : AppColors.secondaryAccent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Reward: ${state.levelXp} XP',
+                      style: const TextStyle(
+                        color: AppColors.success,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => state.exitLevel(),
+                    icon: const Icon(Icons.exit_to_app, size: 18),
+                    tooltip: 'Exit Level',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    style: IconButton.styleFrom(foregroundColor: AppColors.error),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Action buttons row: Prominent Restart button in top left (Objective 1) & Pause button (Objective 2)
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => state.restartSimulationOver(),
+                    icon: const Icon(Icons.restart_alt, size: 15),
+                    label: const Text('Restart', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondaryAccent,
+                      foregroundColor: const Color(0xFF0F172A),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      if (state.isPaused) {
+                        state.resumeAnimation();
+                      } else {
+                        state.pauseAnimation();
+                      }
+                    },
+                    icon: Icon(state.isPaused ? Icons.play_arrow : Icons.pause, size: 15),
+                    label: Text(
+                      state.isPaused ? 'Resume' : 'Pause',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: state.isPaused ? AppColors.success : AppColors.warning,
+                      side: BorderSide(color: state.isPaused ? AppColors.success : AppColors.warning),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Level introduction narrative
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome to the first level!',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Use this level to get used to the simulator interface.\n\nClick on a computer to view information about who owns it. You can also pause the simulation and click on a packet to see where it is going and who it is coming from.\n\nPausing and restarting often is the key to success in this game! It allows you to slow down and see how things work.\n\nFollow the steps below to complete this level.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11.5,
+                        height: 1.4,
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              Text(
+                'Level Objectives',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // Objectives Checklist rendered as clean column
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildObjectiveChip(
+                    context,
+                    number: '1',
+                    text: 'Use the restart button in the top left to start the simulation over',
+                    isDone: obj['restart'] ?? false,
+                  ),
+                  const SizedBox(height: 6),
+                  _buildObjectiveChip(
+                    context,
+                    number: '2',
+                    text: 'Pause the simulation',
+                    isDone: obj['pause'] ?? false,
+                  ),
+                  const SizedBox(height: 6),
+                  _buildObjectiveChip(
+                    context,
+                    number: '3',
+                    text: 'Click on a computer to see its properties',
+                    isDone: obj['inspect_pc'] ?? false,
+                  ),
+                  const SizedBox(height: 6),
+                  _buildObjectiveChip(
+                    context,
+                    number: '4',
+                    text: 'Click on a packet (the circles) to see its properties',
+                    isDone: obj['inspect_packet'] ?? false,
+                  ),
+                  const SizedBox(height: 6),
+                  _buildObjectiveChip(
+                    context,
+                    number: '5',
+                    text: 'Click the + button and add a new packet (you can leave the properties blank for now!)',
+                    isDone: obj['add_packet'] ?? false,
+                  ),
+                  const SizedBox(height: 6),
+                  _buildObjectiveChip(
+                    context,
+                    number: '6',
+                    text: 'Click the send arrow beside the packet you just added!',
+                    isDone: obj['send_packet'] ?? false,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (levelIdx == 2) {
+      title = 'Level 2: Broken Cable';
       goal = 'Goal: Restore communication between PC1 and PC2.';
       hints = [
         'Check the connections between the devices. Some might be broken.',
         'Select the broken red cable and click \'Repair Connection\' in the inspector.'
       ];
-    } else if (levelIdx == 2) {
-      title = 'Level 2: Incorrect IP';
+    } else if (levelIdx == 3) {
+      title = 'Level 3: Incorrect IP';
       goal = 'Goal: Correct the IP subnet prefix mismatch for PC2.';
       hints = [
         'Look at the IP addresses of PC1 and PC2. Do they share the same subnet prefix?',
         'Select PC2, click its IP address in the properties panel to edit it, and change it to 192.168.1.20.'
+      ];
+    } else if (levelIdx == 4) {
+      title = 'Level 4: Interface Port DOWN';
+      goal = 'Goal: Re-enable the shut down network interface on PC2.';
+      hints = [
+        'Check the port status badge on PC2 or inspect its IP Configuration.',
+        'Select PC2 and toggle interface eth0 from DOWN to UP.'
       ];
     }
 
@@ -320,6 +552,533 @@ class NetworkCanvas extends StatelessWidget {
     );
   }
 
+  Widget _buildObjectiveChip(
+    BuildContext context, {
+    required String number,
+    required String text,
+    required bool isDone,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDone
+            ? AppColors.success.withOpacity(0.12)
+            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isDone ? AppColors.success : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          width: isDone ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 14,
+            color: isDone ? AppColors.success : theme.hintColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$number. $text',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isDone ? FontWeight.bold : FontWeight.w500,
+                color: isDone
+                    ? AppColors.success
+                    : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+                decoration: isDone ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
+  // Challenge System HUD Overlay
+  // =========================================================================
+
+  Widget _buildChallengeHUD(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final ch = state.activeChallenge!;
+    final isCompleted = ch.status == ChallengeStatus.completed;
+
+    return Card(
+      color: isDark ? AppColors.darkSurface.withOpacity(0.96) : AppColors.lightSurface.withOpacity(0.96),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: isCompleted ? AppColors.success : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          width: isCompleted ? 1.5 : 1.0,
+        ),
+      ),
+      margin: EdgeInsets.zero,
+      elevation: 6,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 280),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top Header Row
+                Row(
+                  children: [
+                    Icon(ch.category.icon, size: 20, color: ch.category.color),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Challenge ${ch.number.toString().padLeft(2, '0')}: ${ch.title}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: ch.category.color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        ch.category.shortName,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: ch.category.color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+
+                    if (isCompleted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.success, width: 1),
+                        ),
+                        child: const Text(
+                          'Completed ✓',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+
+                    // Reset Challenge button
+                    IconButton(
+                      onPressed: () => state.resetActiveChallenge(),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      tooltip: 'Reset Challenge',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Exit Challenge button
+                    IconButton(
+                      onPressed: () => state.exitChallenge(),
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Exit to Challenges Menu',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      style: IconButton.styleFrom(foregroundColor: AppColors.error),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Objective Banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  ),
+                  child: Text(
+                    '🎯 Objective: ${ch.learningObjective}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Interactive Challenge-Specific Controls Row
+                _buildChallengeActionControls(context, ch),
+                const SizedBox(height: 8),
+
+                // Hints Row
+                Row(
+                  children: [
+                    if (state.challengeHintsUsed < ch.hints.length)
+                      TextButton.icon(
+                        onPressed: () => state.showNextChallengeHint(),
+                        icon: const Icon(Icons.lightbulb_outline, size: 14, color: AppColors.warning),
+                        label: Text(
+                          state.challengeHintsUsed == 0 ? 'Show Hint' : 'Show Next Hint',
+                          style: const TextStyle(fontSize: 11, color: AppColors.warning),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    if (state.challengeHintsUsed > 0) ...[
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '💡 Hint: ${ch.hints[state.challengeHintsUsed - 1]}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                // Victory Card on Completion
+                if (isCompleted) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.success, width: 1),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle, size: 18, color: AppColors.success),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '✓ Challenge Completed! +150 XP Awarded',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                ch.explanation,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (ch.number < 12) ...[
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              final nextId = 'ch${(ch.number + 1).toString().padLeft(2, '0')}';
+                              state.startChallenge(nextId);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: const Color(0xFF0F172A),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            ),
+                            child: const Text('Next →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChallengeActionControls(BuildContext context, Challenge ch) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    switch (ch.id) {
+      case 'ch01':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_packet', {
+                'sourceDeviceId': 'pc_alice',
+                'destinationDeviceId': 'pc_bob',
+                'sourceIP': '192.168.1.10',
+                'destinationIP': '192.168.1.20',
+              }),
+              icon: const Icon(Icons.send, size: 14),
+              label: const Text('Send Alice → Bob (Inspect IP Fields)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: const Color(0xFF0F172A)),
+            ),
+          ],
+        );
+
+      case 'ch02':
+        final currentPings = ch.progress['pingsCompleted'] as int? ?? 0;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_ping'),
+              icon: const Icon(Icons.repeat, size: 14),
+              label: Text('Send ICMP Echo Ping ($currentPings / 5)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: const Color(0xFF0F172A)),
+            ),
+            Text(
+              'Echo Requests: $currentPings of 5 delivered',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ],
+        );
+
+      case 'ch03':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('route_packet', {
+                'sourceDeviceId': 'pc_bob',
+                'destinationDeviceId': 'pc_carol',
+              }),
+              icon: const Icon(Icons.alt_route, size: 14),
+              label: const Text('Route Bob → Carol (via Router A & C)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: const Color(0xFF0F172A)),
+            ),
+          ],
+        );
+
+      case 'ch04':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_through_modem', {'sourceDeviceId': 'pc_alice'}),
+              icon: const Icon(Icons.settings_input_antenna, size: 14),
+              label: const Text('Send Alice Ping via Modem NAT (192.168.1.10 → 203.0.113.5)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: const Color(0xFF0F172A)),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_through_modem', {'sourceDeviceId': 'pc_bob'}),
+              icon: const Icon(Icons.settings_input_antenna, size: 14),
+              label: const Text('Send Bob Ping via Modem NAT (192.168.1.20 → 203.0.113.5)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+
+      case 'ch05':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_spoofed', {
+                'sourceDeviceId': 'pc_alice',
+                'destinationDeviceId': 'pc_bob',
+                'spoofedSourceIP': '192.168.1.30',
+              }),
+              icon: const Icon(Icons.vpn_key, size: 14),
+              label: const Text('Send Spoofed Packet (Actual: Alice, Header: Carol 192.168.1.30)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: const Color(0xFF0F172A)),
+            ),
+          ],
+        );
+
+      case 'ch06':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('divert_traffic'),
+              icon: const Icon(Icons.swap_calls, size: 14),
+              label: const Text('Simulate MAC CAM Poisoning & Divert Bob\'s Packets to Carol', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: const Color(0xFF0F172A)),
+            ),
+          ],
+        );
+
+      case 'ch07':
+        final traffic = ch.progress['trafficGenerated'] ?? 0;
+        final status = ch.progress['serverStatus'] ?? 'Normal';
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('generate_traffic', {'packetCount': 25}),
+              icon: const Icon(Icons.bolt, size: 14),
+              label: const Text('Generate Traffic Burst (25 packets)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            ),
+            Text(
+              'Server Load: $traffic / 20 pkts (Status: $status)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: status == 'OVERLOADED' ? AppColors.error : AppColors.success,
+              ),
+            ),
+          ],
+        );
+
+      case 'ch08':
+        final total = ch.progress['totalTraffic'] ?? 0;
+        final status = ch.progress['serverStatus'] ?? 'Normal';
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_ddos_burst', {
+                'aliceTraffic': 8,
+                'bobTraffic': 7,
+                'carolTraffic': 9,
+                'daveTraffic': 6,
+              }),
+              icon: const Icon(Icons.flash_on, size: 14),
+              label: const Text('Trigger All Botnet Endpoints (Total: 30 pkts)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            ),
+            Text(
+              'Aggregated Load: $total / 20 pkts (Status: $status)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: status == 'OVERLOADED' ? AppColors.error : AppColors.success,
+              ),
+            ),
+          ],
+        );
+
+      case 'ch09':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('smurf_broadcast', {
+                'destinationIP': '255.255.255.255',
+                'sourceIP': '8.8.8.8',
+              }),
+              icon: const Icon(Icons.campaign, size: 14),
+              label: const Text('Broadcast Echo Request (Spoofed Source: 8.8.8.8)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            ),
+          ],
+        );
+
+      case 'ch10':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_mitm_packet', {'encrypted': false}),
+              icon: const Icon(Icons.lock_open, size: 14),
+              label: const Text('Send Plaintext HTTP (Eve Reads & Tampered)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: const Color(0xFF0F172A)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('send_mitm_packet', {'encrypted': true}),
+              icon: const Icon(Icons.lock, size: 14),
+              label: const Text('Send Encrypted TLS/HTTPS (Eve Cannot Read)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: const Color(0xFF0F172A)),
+            ),
+          ],
+        );
+
+      case 'ch11':
+        return Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('request_site', {'useProxy': false}),
+              icon: const Icon(Icons.block, size: 14),
+              label: const Text('Direct: Alice → Blocked Site (Expect Drop)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => state.executeChallengeAction('request_site', {'useProxy': true}),
+              icon: const Icon(Icons.vpn_lock, size: 14),
+              label: const Text('Tunnel: Alice → Proxy Server → Blocked Site', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), foregroundColor: Colors.white),
+            ),
+          ],
+        );
+
+      case 'ch12':
+        final currentTtl = ch.progress['currentTTL'] as int? ?? 1;
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('Set Probe TTL: ', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ...[1, 2, 3, 4, 5].map((ttlVal) {
+              final isTarget = currentTtl == ttlVal;
+              return ElevatedButton(
+                onPressed: () => state.executeChallengeAction('traceroute_probe', {'ttl': ttlVal}),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isTarget ? const Color(0xFF10B981) : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                  foregroundColor: isTarget ? const Color(0xFF0F172A) : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                child: Text('TTL=$ttlVal', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              );
+            }),
+          ],
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   Widget _buildVictoryOverlay(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -382,10 +1141,11 @@ class NetworkCanvas extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (state.activeLevelIndex == 1) ...[
+                    if ((state.activeLevelIndex ?? 0) < 4) ...[
                       ElevatedButton(
                         onPressed: () {
-                          state.startLevel(2);
+                          final currentLvl = state.activeLevelIndex ?? 1;
+                          state.startLevel(currentLvl + 1);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryAccent,
@@ -432,42 +1192,112 @@ class NetworkCanvas extends StatelessWidget {
     final double packetX = srcCenterX + (destCenterX - srcCenterX) * t;
     final double packetY = srcCenterY + (destCenterY - srcCenterY) * t;
 
+    final isPaused = state.isPaused;
+    final activeLayer = state.currentActiveOsiLayer;
+    final phaseLabel = state.currentEncapsulationPhase;
+
+    String layerBadge = 'L$activeLayer';
+    Color badgeBg = AppColors.primaryAccent;
+    if (activeLayer == 7) {
+      layerBadge = 'L7 App';
+      badgeBg = const Color(0xFFE11D48);
+    } else if (activeLayer == 4) {
+      layerBadge = 'L4 Trans';
+      badgeBg = const Color(0xFFF59E0B);
+    } else if (activeLayer == 3) {
+      layerBadge = 'L3 Net (IP)';
+      badgeBg = AppColors.primaryAccent;
+    } else if (activeLayer == 2) {
+      layerBadge = 'L2 Link (MAC)';
+      badgeBg = AppColors.secondaryAccent;
+    } else if (activeLayer == 1) {
+      layerBadge = 'L1 Physical Bits';
+      badgeBg = AppColors.success;
+    }
+
     return Positioned(
-      left: packetX - 12,
-      top: packetY - 12,
-      child: GestureDetector(
-        onTap: () {
-          if (state.isPaused) {
-            state.resumeAnimation();
-          } else {
-            state.pauseAnimation();
-          }
-        },
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: AppColors.primaryAccent,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2.5),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryAccent.withOpacity(state.isPaused ? 0.4 : 0.8),
-                  blurRadius: 10,
-                  spreadRadius: 3,
-                )
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                state.isPaused ? Icons.play_arrow : Icons.pause,
-                size: 11,
-                color: Colors.white,
+      left: packetX - 80,
+      top: packetY - 45,
+      child: SizedBox(
+        width: 160,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Live Layer Tag Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isPaused ? AppColors.warning : badgeBg,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isPaused ? AppColors.warning : badgeBg).withValues(alpha: 0.6),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPaused ? Icons.pause_circle_filled : Icons.motion_photos_on,
+                    size: 11,
+                    color: const Color(0xFF0F172A),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$layerBadge • $phaseLabel',
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+            const SizedBox(height: 4),
+            // Circular animated packet node
+            GestureDetector(
+              onTap: () {
+                state.inspectPacketCircle();
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Tooltip(
+                  message: isPaused
+                      ? 'Click to Resume Animation'
+                      : 'Click Packet to Pause & Inspect Layer 2 (MAC) & Layer 3 (IP) Data',
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: isPaused ? AppColors.warning : badgeBg,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isPaused ? AppColors.warning : badgeBg).withValues(alpha: 0.8),
+                          blurRadius: 12,
+                          spreadRadius: 4,
+                        )
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(
+                        isPaused ? Icons.pause : Icons.send,
+                        size: 13,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -574,6 +1404,7 @@ class NetworkCanvas extends StatelessWidget {
     final c = cableType.toLowerCase();
 
     if (c == 'console') return false;
+    if (t1 == 'MODEM' || t2 == 'MODEM') return true;
     if (t1 == 'PC' && t2 == 'PC') return c == 'crossover';
     if ((t1 == 'PC' && t2 == 'SWITCH') || (t1 == 'SWITCH' && t2 == 'PC')) return c == 'straight_through';
     if (t1 == 'SWITCH' && t2 == 'SWITCH') return c == 'crossover' || c == 'fiber';
@@ -592,7 +1423,7 @@ class NetworkCanvas extends StatelessWidget {
     final isPortDown = dev.portStatus.toLowerCase() == 'down';
 
     IconData devIcon;
-    switch (dev.type) {
+    switch (dev.type.toUpperCase()) {
       case 'PC':
         devIcon = Icons.computer;
         break;
@@ -601,6 +1432,9 @@ class NetworkCanvas extends StatelessWidget {
         break;
       case 'ROUTER':
         devIcon = Icons.router;
+        break;
+      case 'MODEM':
+        devIcon = Icons.settings_input_antenna;
         break;
       default:
         devIcon = Icons.device_unknown;

@@ -37,10 +37,22 @@ class PacketModel(BaseModel):
     currentLayer: int = 3
     status: str = "ready"
 
+class ExplanationModel(BaseModel):
+    code: str
+    title: str
+    what_happened: str
+    why: str
+    how_to_fix: str
+    concept: str
+    failed_device_id: Optional[str] = None
+    failed_connection_id: Optional[str] = None
+
 class SimulationResponse(BaseModel):
     success: bool
     error: Optional[str] = None
     message: Optional[str] = None
     path: Optional[List[str]] = None
+    path_ids: Optional[List[str]] = None
     packet: Optional[PacketModel] = None
+    explanation: Optional[ExplanationModel] = None
 

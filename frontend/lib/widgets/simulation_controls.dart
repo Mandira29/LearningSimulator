@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/simulator_state.dart';
 import '../theme/app_theme.dart';
+import 'local_storage_modal.dart';
 import 'subnet_calculator_modal.dart';
 import 'wireshark_inspector_modal.dart';
+
 
 
 
@@ -38,54 +40,83 @@ class SimulationControls extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Top Row: Source and Destination Selectors + Status Indicator
-          Row(
-            children: [
-              // Source Dropdown
-              const Text('Source: ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
-              _buildDropdown(
-                context,
-                value: state.sourceDeviceId.isEmpty ? null : state.sourceDeviceId,
-                items: deviceList.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
-                hint: 'Choose Source',
-                onChanged: state.isAnimating
-                    ? null
-                    : (val) {
-                        if (val != null) state.setSourceDevice(val);
-                      },
-              ),
-              const SizedBox(width: 24),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Source Dropdown
+                const Text('Source: ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                _buildDropdown(
+                  context,
+                  value: state.sourceDeviceId.isEmpty ? null : state.sourceDeviceId,
+                  items: deviceList.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
+                  hint: 'Choose Source',
+                  onChanged: state.isAnimating
+                      ? null
+                      : (val) {
+                          if (val != null) state.setSourceDevice(val);
+                        },
+                ),
+                const SizedBox(width: 24),
 
-              // Destination Dropdown
-              const Text('Destination: ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
-              _buildDropdown(
-                context,
-                value: state.destinationDeviceId.isEmpty ? null : state.destinationDeviceId,
-                items: deviceList.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
-                hint: 'Choose Destination',
-                onChanged: state.isAnimating
-                    ? null
-                    : (val) {
-                        if (val != null) state.setDestinationDevice(val);
-                      },
-              ),
+                // Destination Dropdown
+                const Text('Destination: ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                _buildDropdown(
+                  context,
+                  value: state.destinationDeviceId.isEmpty ? null : state.destinationDeviceId,
+                  items: deviceList.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
+                  hint: 'Choose Destination',
+                  onChanged: state.isAnimating
+                      ? null
+                      : (val) {
+                          if (val != null) state.setDestinationDevice(val);
+                        },
+                ),
 
-              const Spacer(),
+                const SizedBox(width: 32),
 
-              // Simulation Engine status
-              _buildBackendStatus(context),
-              const SizedBox(width: 24),
+                // Simulation Engine status
+                _buildBackendStatus(context),
+                const SizedBox(width: 24),
 
-              // Simulation Status Label
-              _buildStatusIndicator(context),
-            ],
+                // Simulation Status Label
+                _buildStatusIndicator(context),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+
+          // Custom Packets Bar / Queue (Objectives 5 & 6)
+          _buildPacketsQueueRow(context),
+          const SizedBox(height: 12),
 
           // Bottom Row: Action Buttons
-          Row(
-            children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+              // Pause / Resume Simulation Button (Objective 2)
+              if (state.isAnimating) ...[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (state.isPaused) {
+                      state.resumeAnimation();
+                    } else {
+                      state.pauseAnimation();
+                    }
+                  },
+                  icon: Icon(state.isPaused ? Icons.play_arrow : Icons.pause, size: 18),
+                  label: Text(state.isPaused ? 'Resume' : 'Pause'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: state.isPaused ? AppColors.success : AppColors.warning,
+                    foregroundColor: const Color(0xFF0F172A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
               // Connect (Cable Mode) Button
               ElevatedButton.icon(
                 onPressed: state.isAnimating
@@ -245,6 +276,24 @@ class SimulationControls extends StatelessWidget {
                 color: AppColors.success,
               ),
 
+              // Offline Saved Work Manager Button
+              ElevatedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => LocalStorageModal(state: state),
+                  );
+                },
+                icon: const Icon(Icons.sd_card_outlined, size: 18),
+                label: const Text('Saved Work (Offline)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryAccent.withOpacity(0.9),
+                  foregroundColor: const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
               // Save JSON Topology Button
               ElevatedButton.icon(
                 onPressed: (state.devices.isEmpty || state.isAnimating)
@@ -261,6 +310,7 @@ class SimulationControls extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+
 
               // Load JSON Topology Button
               ElevatedButton.icon(
@@ -289,12 +339,11 @@ class SimulationControls extends StatelessWidget {
                 color: isDark ? AppColors.primaryAccent : const Color(0xFF0284C7),
               ),
 
-              const Spacer(),
+                const SizedBox(width: 16),
 
-              // Feedback Text / Output Message
-              Expanded(
-                flex: 4,
-                child: Container(
+                // Feedback Text / Output Message
+                Container(
+                  constraints: const BoxConstraints(minWidth: 200, maxWidth: 350),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: theme.canvasColor,
@@ -316,8 +365,8 @@ class SimulationControls extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
         ],
@@ -564,6 +613,283 @@ class SimulationControls extends StatelessWidget {
               },
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPacketsQueueRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A).withOpacity(0.6) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.markunread_mailbox_outlined, size: 16, color: AppColors.primaryAccent),
+              const SizedBox(width: 6),
+              const Text(
+                'Packets:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+
+              // The + button to add a new packet (Objective 5)
+              ElevatedButton.icon(
+                onPressed: () => _showAddPacketDialog(context),
+                icon: const Icon(Icons.add, size: 15),
+                label: const Text('+ Add Packet', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryAccent,
+                  foregroundColor: const Color(0xFF0F172A),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+
+          // Horizontal scrollable list of queued packets
+          Expanded(
+            child: state.packetQueue.isEmpty
+                ? Text(
+                    'No custom packets yet. Click "+ Add Packet" to craft one! (leave properties blank for defaults)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: theme.hintColor,
+                    ),
+                  )
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: state.packetQueue.map((pkt) {
+                        return Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: theme.dividerColor),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.secondaryAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${pkt.name}: ${pkt.sourceName} ➔ ${pkt.destName} (${pkt.protocol})',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+
+                              // SEND ARROW beside the packet (Objective 6)
+                              Tooltip(
+                                message: 'Click to send this packet',
+                                child: InkWell(
+                                  onTap: state.isAnimating
+                                      ? null
+                                      : () => state.dispatchPacketFromQueue(pkt),
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_forward,
+                                      size: 15,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 14, color: Colors.grey),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Remove',
+                                onPressed: () => state.removePacketFromQueue(pkt.id),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddPacketDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final devices = state.devices;
+    String selectedSource = state.sourceDeviceId.isNotEmpty
+        ? state.sourceDeviceId
+        : (devices.isNotEmpty ? devices.first.id : '');
+    String selectedDest = state.destinationDeviceId.isNotEmpty
+        ? state.destinationDeviceId
+        : (devices.length > 1 ? devices[1].id : (devices.isNotEmpty ? devices.first.id : ''));
+    String selectedProtocol = 'ICMP';
+    final payloadController = TextEditingController(text: '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              title: const Row(
+                children: [
+                  Icon(Icons.add_circle_outline, color: AppColors.primaryAccent),
+                  SizedBox(width: 8),
+                  Text('Add New Packet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Objective 5 reminder banner
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondaryAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.secondaryAccent.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: AppColors.secondaryAccent),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'You can leave the properties blank for now!',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondaryAccent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Source Device selector
+                    const Text('Source Device:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    DropdownButtonFormField<String>(
+                      value: selectedSource.isNotEmpty ? selectedSource : null,
+                      items: devices.map((d) => DropdownMenuItem(value: d.id, child: Text('${d.name} (${d.ipAddress})'))).toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedSource = val);
+                      },
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Destination Device selector
+                    const Text('Destination Device:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    DropdownButtonFormField<String>(
+                      value: selectedDest.isNotEmpty ? selectedDest : null,
+                      items: devices.map((d) => DropdownMenuItem(value: d.id, child: Text('${d.name} (${d.ipAddress})'))).toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedDest = val);
+                      },
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Protocol selector
+                    const Text('Protocol:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    DropdownButtonFormField<String>(
+                      value: selectedProtocol,
+                      items: const [
+                        DropdownMenuItem(value: 'ICMP', child: Text('ICMP (Ping)')),
+                        DropdownMenuItem(value: 'HTTP', child: Text('HTTP (Port 80)')),
+                        DropdownMenuItem(value: 'DNS', child: Text('DNS (Port 53)')),
+                        DropdownMenuItem(value: 'TCP', child: Text('TCP Handshake')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedProtocol = val);
+                      },
+                      decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Optional payload
+                    const Text('Payload / Data (Optional):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: payloadController,
+                      decoration: const InputDecoration(
+                        hintText: 'Leave blank for default payload',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    state.addPacketToQueue(
+                      sourceId: selectedSource,
+                      destId: selectedDest,
+                      protocol: selectedProtocol,
+                      payload: payloadController.text.trim(),
+                    );
+                    Navigator.of(ctx).pop();
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Packet'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryAccent,
+                    foregroundColor: const Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

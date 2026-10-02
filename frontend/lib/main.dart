@@ -5,7 +5,9 @@ import 'theme/app_theme.dart';
 import 'widgets/sidebar_navigation.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/simulator_screen.dart';
-import 'screens/troubleshooting_screen.dart';
+import 'screens/challenges_screen.dart';
+import 'screens/learning_path_screen.dart';
+import 'screens/packet_journey_screen.dart';
 import 'screens/settings_screen.dart';
 
 void main() {
@@ -114,26 +116,46 @@ class _AppShellState extends State<AppShell> {
     switch (_currentIndex) {
       case 0:
         activeScreen = DashboardScreen(
+          state: widget.simulatorState,
           onOpenSimulatorPressed: () => _onNavigationChanged(1),
           onTroubleshootingLabPressed: () => _onNavigationChanged(2),
+          onOpenModulesPressed: () => _onNavigationChanged(3),
+          onOpenPacketJourneyPressed: () => _onNavigationChanged(5),
         );
         break;
       case 1:
         activeScreen = SimulatorScreen(state: widget.simulatorState);
         break;
       case 2:
-        activeScreen = TroubleshootingScreen(state: widget.simulatorState);
+        activeScreen = ChallengesScreen(state: widget.simulatorState);
         break;
       case 3:
-        activeScreen = SettingsScreen(themeService: widget.themeService);
-        break;
-      default:
-        activeScreen = DashboardScreen(
+        activeScreen = LearningPathScreen(
           onOpenSimulatorPressed: () => _onNavigationChanged(1),
           onTroubleshootingLabPressed: () => _onNavigationChanged(2),
         );
         break;
+      case 4:
+        activeScreen = SettingsScreen(themeService: widget.themeService);
+        break;
+      case 5:
+        activeScreen = PacketJourneyScreen(
+          state: widget.simulatorState,
+          onOpenSimulatorPressed: () => _onNavigationChanged(1),
+        );
+        break;
+      default:
+        activeScreen = DashboardScreen(
+          state: widget.simulatorState,
+          onOpenSimulatorPressed: () => _onNavigationChanged(1),
+          onTroubleshootingLabPressed: () => _onNavigationChanged(2),
+          onOpenModulesPressed: () => _onNavigationChanged(3),
+          onOpenPacketJourneyPressed: () => _onNavigationChanged(5),
+        );
+        break;
     }
+
+
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
